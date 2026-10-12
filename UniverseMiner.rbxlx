@@ -1,0 +1,2252 @@
+<roblox version="4">
+  <Item class="Lighting" referent="0">
+    <Properties>
+      <string name="Name">Lighting</string>
+      <float name="Brightness">2</float>
+      <float name="ClockTime">14</float>
+      <bool name="GlobalShadows">true</bool>
+    </Properties>
+  </Item>
+  <Item class="ReplicatedStorage" referent="1">
+    <Properties>
+      <string name="Name">ReplicatedStorage</string>
+    </Properties>
+    <Item class="Folder" referent="2">
+      <Properties>
+        <string name="Name">UniverseMiner</string>
+      </Properties>
+      <Item class="ModuleScript" referent="3">
+        <Properties>
+          <string name="Name">Balance</string>
+          <string name="Source"><![CDATA[local B = {}
+function B.rebirthCost(count)
+	return math.min(1e150, math.floor(25000 * 1.65 ^ math.min(count, 670)))
+end
+function B.rebirthMultiplier(count)
+	return 1 + count * 0.5
+end
+function B.petSlots(data)
+	return 3 + (data.Passes.ExtraPetSlots and 3 or 0)
+end
+function B.level(crystals)
+	return 1 + math.floor(math.sqrt(crystals / 8))
+end
+function B.compact(n)
+	local units = { "", "K", "M", "B", "T", "Qa", "Qi", "Sx", "Sp", "Oc", "No" }
+	if n < 1000 then
+		return tostring(math.floor(n))
+	end
+	local tier = math.floor(math.log10(n) / 3)
+	if tier >= #units then
+		return string.format("%.2e", n)
+	end
+	return string.format("%.1f%s", n / 1000 ^ tier, units[tier + 1])
+end
+return B
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="4">
+        <Properties>
+          <string name="Name">Config</string>
+          <string name="Source"><![CDATA[local C = {}
+C.Title = "Universe Miner Simulator"
+C.DataStore = "UniverseMiner_v1"
+C.StudioTemporaryData = true
+C.MaxNumber = 1e150
+C.MaxPets = 400
+C.BasePetSlots = 3
+C.BaseBackpack = 30
+C.AutosaveSeconds = 60
+C.EventPeriod = 7200
+C.EventDuration = 900
+C.MusicId = "" -- áudio autorizado opcional
+C.SoundIds = { Mine = "", Reward = "", Hatch = "", Rebirth = "", Level = "" } -- IDs de áudio autorizado
+C.Worlds = {}
+local names = { "Starter", "Forest", "Desert", "Ocean", "Candy", "Volcano", "Space", "Galaxy", "Void", "Heaven" }
+local colors = {
+	{ 94, 195, 115 },
+	{ 40, 139, 73 },
+	{ 234, 195, 93 },
+	{ 55, 176, 218 },
+	{ 238, 125, 193 },
+	{ 220, 80, 41 },
+	{ 73, 92, 150 },
+	{ 127, 74, 213 },
+	{ 53, 32, 83 },
+	{ 232, 215, 157 },
+}
+for i, name in ipairs(names) do
+	C.Worlds[i] = {
+		Name = name .. " World",
+		Cost = i == 1 and 0 or math.floor(1500 * 5 ^ (i - 2)),
+		Health = math.floor(10 * 3 ^ (i - 1)),
+		Reward = math.floor(15 * 4 ^ (i - 1)),
+		EggCost = math.floor(100 * 4 ^ (i - 1)),
+		Color = colors[i],
+		RequiredRebirths = i >= 9 and (i - 8) * 2 or 0,
+	}
+end
+C.Tools = {}
+local tiers = { "Wood", "Stone", "Iron", "Gold", "Diamond", "Emerald", "Galaxy", "Void", "God" }
+for i = 1, 36 do
+	C.Tools[i] = {
+		Name = tiers[math.ceil(i / 4)] .. " Pickaxe " .. ((i - 1) % 4 + 1),
+		Cost = i == 1 and 0 or math.floor(70 * 1.9 ^ (i - 2)),
+		Damage = math.floor(3 * 1.48 ^ (i - 1)),
+		Interval = math.max(0.12, 0.55 - 0.012 * (i - 1)),
+		Coins = 1 + (i - 1) * 0.08,
+	}
+end
+C.Rarities = { "Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythical", "Secret" }
+C.Weights = { 6000, 2500, 1000, 400, 85, 14, 1 }
+C.Pets = {}
+local species = { "Sprite", "Fox", "Golem", "Dragon", "Phoenix", "Titan", "Oracle" }
+for world = 1, 10 do
+	for rarity, label in ipairs(C.Rarities) do
+		local id = "w" .. world .. "r" .. rarity
+		C.Pets[id] = {
+			Name = names[world] .. " " .. species[rarity],
+			Rarity = label,
+			Rank = rarity,
+			World = world,
+			Coins = 0.10 * world * rarity,
+			Damage = 0.12 * world * rarity,
+			Gems = 0.03 * rarity,
+		}
+	end
+end
+C.Pets.daily = { Name = "Daily Comet", Rarity = "Epic", Rank = 4, World = 1, Coins = 0.8, Damage = 0.8, Gems = 0.2 }
+C.Pets.event = { Name = "Event Nebula", Rarity = "Mythical", Rank = 6, World = 7, Coins = 3, Damage = 3, Gems = 0.4 }
+C.Pets.weekly =
+	{ Name = "Weekly Supernova", Rarity = "Mythical", Rank = 6, World = 8, Coins = 4, Damage = 4, Gems = 0.5 }
+C.Pets.vip = { Name = "Royal Star", Rarity = "Legendary", Rank = 5, World = 6, Coins = 2, Damage = 2, Gems = 0.3 }
+-- IDs zero desativam compras. Use IDs únicos da mesma experiência.
+C.Passes = {}
+for _, name in ipairs({
+	"DoubleCoins",
+	"DoubleLuck",
+	"DoubleGems",
+	"AutoMine",
+	"AutoSell",
+	"InfiniteBackpack",
+	"VIP",
+	"FastHatch",
+	"TripleHatch",
+	"TeleportAllWorlds",
+	"ExtraPetSlots",
+	"Magnet",
+	"ExclusivePets",
+	"InstantRebirth",
+	"PremiumAFK",
+}) do
+	C.Passes[name] = 0
+end
+C.PassLabels = {
+	DoubleCoins = "2x Coins",
+	DoubleLuck = "2x Luck",
+	DoubleGems = "2x Gems",
+	AutoMine = "Auto Mine",
+	AutoSell = "Auto Sell",
+	InfiniteBackpack = "Infinite Backpack",
+	VIP = "VIP",
+	FastHatch = "Fast Hatch",
+	TripleHatch = "Triple Hatch",
+	TeleportAllWorlds = "Teleport All Worlds",
+	ExtraPetSlots = "+3 Pet Slots",
+	Magnet = "Magnet",
+	ExclusivePets = "Exclusive Pet",
+	InstantRebirth = "Rebirth sem confirmação",
+	PremiumAFK = "Premium AFK Rewards",
+}
+C.Products = {
+	Gems50 = { Id = 0, Kind = "Gems", Amount = 50, Label = "50 Gems" },
+	Gems500 = { Id = 0, Kind = "Gems", Amount = 500, Label = "500 Gems" },
+	Gems5000 = { Id = 0, Kind = "Gems", Amount = 5000, Label = "5000 Gems" },
+	Luck15 = { Id = 0, Kind = "Luck", Amount = 900, Label = "Luck • 15 min" },
+	Luck30 = { Id = 0, Kind = "Luck", Amount = 1800, Label = "Luck • 30 min" },
+	Coins15 = { Id = 0, Kind = "Coins", Amount = 900, Label = "Coins • 15 min" },
+	Coins30 = { Id = 0, Kind = "Coins", Amount = 1800, Label = "Coins • 30 min" },
+	Eggs10 = { Id = 0, Kind = "Eggs", Amount = 10, Label = "10 créditos de ovo" },
+	Eggs100 = { Id = 0, Kind = "Eggs", Amount = 100, Label = "100 créditos de ovo" },
+	WeeklyPet = { Id = 0, Kind = "Pet", Pet = "weekly", Amount = 1, Label = "Weekly Supernova" },
+}
+C.Quests = {
+	{ Key = "Crystals", Target = 100, Gems = 75, Reward = "Coins" },
+	{ Key = "Coins", Target = 10000, Gems = 100, Reward = "Luck" },
+	{ Key = "Eggs", Target = 15, Gems = 150, Reward = "daily" },
+}
+C.Codes = { WELCOME = { Gems = 100 }, UNIVERSE = { Gems = 250 } }
+return C
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="5">
+        <Properties>
+          <string name="Name">Economy</string>
+          <string name="Source"><![CDATA[-- Pure operations used by the authoritative server and offline tests.
+local E = {}
+function E.rarity(weights, luck, roll)
+	local sum = 0
+	for i, w in ipairs(weights) do
+		sum += w * (i >= 3 and luck or 1)
+	end
+	local cursor = 0
+	for i, w in ipairs(weights) do
+		cursor += w * (i >= 3 and luck or 1)
+		if roll * sum < cursor then
+			return i
+		end
+	end
+	return #weights
+end
+function E.hatchPlan(cost, coins, credits, count, petCount, limit)
+	if count ~= 1 and count ~= 3 then
+		return nil, "Count"
+	end
+	if petCount + count > limit then
+		return nil, "Capacity"
+	end
+	local used = math.min(count, credits)
+	local price = cost * (count - used)
+	if coins < price then
+		return nil, "Coins"
+	end
+	return { Cost = price, Credits = used }
+end
+function E.receipt(d, receiptKey, product, now, petFactory, maxNumber)
+	if d.Receipts[receiptKey] then
+		return true, false
+	end
+	if product.Kind == "Gems" then
+		d.Gems = math.min(maxNumber, d.Gems + product.Amount)
+	elseif product.Kind == "Coins" or product.Kind == "Luck" then
+		d.Boosts[product.Kind] = math.max(now, d.Boosts[product.Kind] or 0) + product.Amount
+	elseif product.Kind == "Eggs" then
+		d.EggCredits += product.Amount
+	elseif product.Kind == "Pet" then
+		petFactory(d, product.Pet)
+	else
+		return false, false
+	end
+	d.Receipts[receiptKey] = now
+	return true, true
+end
+return E
+]]></string>
+        </Properties>
+      </Item>
+    </Item>
+  </Item>
+  <Item class="ServerScriptService" referent="6">
+    <Properties>
+      <string name="Name">ServerScriptService</string>
+    </Properties>
+    <Item class="Folder" referent="7">
+      <Properties>
+        <string name="Name">UniverseMiner</string>
+      </Properties>
+      <Item class="ModuleScript" referent="8">
+        <Properties>
+          <string name="Name">Commerce</string>
+          <string name="Source"><![CDATA[local Marketplace = game:GetService("MarketplaceService")
+local Players = game:GetService("Players")
+local C = require(game.ReplicatedStorage.UniverseMiner.Config)
+local Economy = require(game.ReplicatedStorage.UniverseMiner.Economy)
+local Data = require(script.Parent.Data)
+local Game = require(script.Parent.Game)
+local Commerce = {}
+local products = {}
+local passIds = {}
+for key, product in pairs(C.Products) do
+	if product.Id > 0 then
+		assert(not products[product.Id], "Developer Product ID duplicado")
+		products[product.Id] = product
+	end
+end
+for key, id in pairs(C.Passes) do
+	if id > 0 then
+		assert(not passIds[id], "Gamepass ID duplicado")
+		passIds[id] = key
+	end
+end
+function Commerce.refresh(player)
+	local s = Data.Sessions[player]
+	if not s then
+		return
+	end
+	for key, id in pairs(C.Passes) do
+		if id > 0 then
+			local ok, owned = pcall(function()
+				return Marketplace:UserOwnsGamePassAsync(player.UserId, id)
+			end)
+			if ok and Data.Sessions[player] == s then
+				s.Data.Passes[key] = owned
+			else
+				warn("Gamepass não verificado:", key)
+			end
+		end
+	end
+	if Data.Sessions[player] ~= s or s.Closing then
+		return
+	end
+	if s.Data.Passes.ExclusivePets and not s.Data.ExclusiveGranted then
+		Game.pet(s.Data, "vip")
+		s.Data.ExclusiveGranted = true
+	end
+	Game.snapshot(player)
+end
+function Commerce.prompt(player, arg)
+	if type(arg) ~= "table" or type(arg.Key) ~= "string" then
+		return
+	end
+	if arg.Type == "Pass" then
+		local id = C.Passes[arg.Key]
+		if id and id > 0 then
+			Marketplace:PromptGamePassPurchase(player, id)
+		else
+			Game.notice(player, "Gamepass ainda não configurado.")
+		end
+	elseif arg.Type == "Product" then
+		local p = C.Products[arg.Key]
+		if p and p.Id > 0 then
+			Marketplace:PromptProductPurchase(player, p.Id)
+		else
+			Game.notice(player, "Produto ainda não configurado.")
+		end
+	end
+end
+function Commerce.init()
+	Marketplace.PromptGamePassPurchaseFinished:Connect(function(player, _, purchased)
+		if purchased then
+			task.spawn(Commerce.refresh, player)
+		end
+	end)
+	Marketplace.ProcessReceipt = function(receipt)
+		local player = Players:GetPlayerByUserId(receipt.PlayerId)
+		local s = player and Data.Sessions[player]
+		if not s or not Data.writable(player) or s.Temporary then
+			return Enum.ProductPurchaseDecision.NotProcessedYet
+		end
+		local product = products[receipt.ProductId]
+		if not product then
+			warn("Recibo de produto sem configuração:", receipt.ProductId)
+			return Enum.ProductPurchaseDecision.NotProcessedYet
+		end
+		local d = s.Data
+		local receiptKey = tostring(receipt.PurchaseId)
+		-- Grant without yielding; record in the SAME durable profile. Retry always saves
+		-- before acknowledgement, including an earlier in-memory grant whose save failed.
+		local valid = Economy.receipt(d, receiptKey, product, os.time(), Game.pet, C.MaxNumber)
+		if not valid then
+			return Enum.ProductPurchaseDecision.NotProcessedYet
+		end
+		if not Data.save(player, false) then
+			return Enum.ProductPurchaseDecision.NotProcessedYet
+		end
+		Game.snapshot(player)
+		Game.notice(player, "Compra entregue e salva!")
+		return Enum.ProductPurchaseDecision.PurchaseGranted
+	end
+end
+return Commerce
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="9">
+        <Properties>
+          <string name="Name">Data</string>
+          <string name="Source"><![CDATA[local DSS = game:GetService("DataStoreService")
+local RunService = game:GetService("RunService")
+local Http = game:GetService("HttpService")
+local C = require(game.ReplicatedStorage.UniverseMiner.Config)
+local Data = { Sessions = {} }
+local store = DSS:GetDataStore(C.DataStore)
+local token = game.JobId .. ":" .. Http:GenerateGUID(false)
+local LEASE = 240
+local function copy(value)
+	if type(value) ~= "table" then
+		return value
+	end
+	local out = {}
+	for k, v in pairs(value) do
+		out[k] = copy(v)
+	end
+	return out
+end
+local function fresh()
+	return {
+		Version = 1,
+		Coins = 0,
+		Gems = 0,
+		Rebirths = 0,
+		Tool = 1,
+		World = 1,
+		Unlocked = { ["1"] = true },
+		Pets = {},
+		Equipped = {},
+		Passes = {},
+		Settings = { Music = true, Effects = true },
+		Boosts = { Coins = 0, Luck = 0 },
+		Bag = 0,
+		BagCount = 0,
+		ExclusiveGranted = false,
+		EggCredits = 0,
+		Crystals = 0,
+		TotalCoins = 0,
+		TotalPets = 0,
+		Codes = {},
+		Receipts = {},
+		Daily = { Day = math.floor(os.time() / 86400), Crystals = 0, Coins = 0, Eggs = 0, Claimed = {} },
+	}
+end
+local function normalize(raw)
+	local d = fresh()
+	if type(raw) ~= "table" then
+		return d
+	end
+	if raw.Version and raw.Version ~= 1 then
+		error("Versão de dados não suportada")
+	end
+	for k, v in pairs(d) do
+		if type(raw[k]) == type(v) then
+			d[k] = raw[k]
+		end
+	end
+	for _, key in ipairs({ "Coins", "Gems", "Rebirths", "Bag", "BagCount", "EggCredits", "Crystals", "TotalCoins", "TotalPets" }) do
+		local n = d[key]
+		d[key] = (n == n and n >= 0 and n < math.huge) and math.min(C.MaxNumber, n) or 0
+	end
+	d.Tool = math.clamp(math.floor(tonumber(d.Tool) or 1), 1, #C.Tools)
+	d.World = math.clamp(math.floor(tonumber(d.World) or 1), 1, #C.Worlds)
+	d.Unlocked["1"] = true
+	local pets = {}
+	for _, pet in ipairs(d.Pets) do
+		if type(pet) == "table" and type(pet.Uid) == "string" and C.Pets[pet.Id] then
+			table.insert(pets, pet)
+		end
+	end
+	d.Pets = pets
+	d.Passes = {} -- Ownership is verified with Marketplace on each login.
+	return d
+end
+function Data.load(player)
+	local loaded, blocked
+	local ok, err = pcall(function()
+		store:UpdateAsync("u:" .. player.UserId, function(old)
+			blocked = false
+			if old and old.Lock and old.Lock.Token ~= token and (old.Lock.Expires or 0) > os.time() then
+				blocked = true
+				return nil
+			end
+			loaded = normalize(old and old.Data)
+			return { Data = loaded, Lock = { Token = token, Expires = os.time() + LEASE } }
+		end)
+	end)
+	if blocked then
+		return nil, "Seus dados estão em outra sessão. Aguarde um minuto e tente novamente."
+	end
+	if not ok then
+		warn("UniverseMiner load:", err)
+		if RunService:IsStudio() and C.StudioTemporaryData then
+			local s = { Data = fresh(), Temporary = true, Busy = false, LastSave = os.time() }
+			Data.Sessions[player] = s
+			return s
+		end
+		return nil, "Não foi possível carregar seus dados com segurança. Tente novamente."
+	end
+	local s = { Data = loaded, Temporary = false, Busy = false, LastSave = os.time() }
+	Data.Sessions[player] = s
+	return s
+end
+function Data.save(player, release)
+	local s = Data.Sessions[player]
+	if not s then
+		return false
+	end
+	while s.Busy do
+		task.wait(0.1)
+	end
+	if s.Temporary then
+		return true
+	end
+	s.Busy = true
+	local snapshot = copy(s.Data)
+	local lost = false
+	local ok, err = pcall(function()
+		store:UpdateAsync("u:" .. player.UserId, function(old)
+			if not old or not old.Lock or old.Lock.Token ~= token then
+				lost = true
+				return nil
+			end
+			return { Data = snapshot, Lock = not release and { Token = token, Expires = os.time() + LEASE } or nil }
+		end)
+	end)
+	s.Busy = false
+	if lost then
+		s.ReadOnly = true
+		player:Kick("A sessão de dados expirou. Entre novamente para proteger seu progresso.")
+	end
+	if not ok then
+		warn("UniverseMiner save:", err)
+	end
+	if ok and not lost then
+		s.LastSave = os.time()
+		return true
+	end
+	return false
+end
+function Data.release(player)
+	local s = Data.Sessions[player]
+	if not s then
+		return
+	end
+	s.Closing = true
+	for attempt = 1, 3 do
+		if Data.save(player, true) then
+			break
+		end
+		task.wait(attempt)
+	end
+	Data.Sessions[player] = nil
+end
+function Data.writable(player)
+	local s = Data.Sessions[player]
+	return s and not s.ReadOnly and not s.Closing and (s.Temporary or os.time() - s.LastSave < LEASE - 40)
+end
+return Data
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="10">
+        <Properties>
+          <string name="Name">Game</string>
+          <string name="Source"><![CDATA[local Http = game:GetService("HttpService")
+local Messaging = game:GetService("MessagingService")
+local C = require(game.ReplicatedStorage.UniverseMiner.Config)
+local B = require(game.ReplicatedStorage.UniverseMiner.Balance)
+local Economy = require(game.ReplicatedStorage.UniverseMiner.Economy)
+local Data = require(script.Parent.Data)
+local Map = require(script.Parent.Map)
+local Game = { Runtime = {} }
+local rng = Random.new()
+local outbound
+function Game.init(remote)
+	outbound = remote
+end
+function Game.emit(player, kind, payload)
+	outbound:FireClient(player, kind, payload)
+end
+function Game.notice(player, text)
+	Game.emit(player, "Notice", text)
+end
+function Game.event()
+	local now = os.time()
+	local cycle = math.floor(now / C.EventPeriod)
+	local elapsed = now % C.EventPeriod
+	local names = { "Coins", "Luck", "Gems", "Exclusive" }
+	return {
+		Kind = names[cycle % 4 + 1],
+		Active = elapsed < C.EventDuration,
+		Ends = cycle * C.EventPeriod + C.EventDuration,
+		Next = (cycle + 1) * C.EventPeriod,
+	}
+end
+local function clamp(n)
+	return math.min(C.MaxNumber, math.max(0, n))
+end
+function Game.daily(d)
+	local day = math.floor(os.time() / 86400)
+	if d.Daily.Day ~= day then
+		d.Daily = { Day = day, Crystals = 0, Coins = 0, Eggs = 0, Claimed = {} }
+	end
+end
+function Game.mult(d, kind)
+	local value = 1
+	for _, uid in ipairs(d.Equipped) do
+		for _, pet in ipairs(d.Pets) do
+			if pet.Uid == uid then
+				value += C.Pets[pet.Id][kind] or 0
+				break
+			end
+		end
+	end
+	if kind == "Coins" or kind == "Damage" then
+		value *= B.rebirthMultiplier(d.Rebirths)
+	end
+	if kind == "Coins" then
+		value *= C.Tools[d.Tool].Coins
+	end
+	if d.Passes["Double" .. kind] then
+		value *= 2
+	end
+	if (d.Boosts[kind] or 0) > os.time() then
+		value *= 2
+	end
+	local e = Game.event()
+	if e.Active and e.Kind == kind then
+		value *= 2
+	end
+	return value
+end
+function Game.snapshot(player)
+	local s = Data.Sessions[player]
+	if not s then
+		return
+	end
+	Game.daily(s.Data)
+	local d = s.Data
+	local view = {}
+	for _, key in ipairs({
+		"Coins",
+		"Gems",
+		"Rebirths",
+		"Tool",
+		"World",
+		"Unlocked",
+		"Pets",
+		"Equipped",
+		"Passes",
+		"Settings",
+		"Boosts",
+		"Bag",
+		"BagCount",
+		"EggCredits",
+		"Crystals",
+		"TotalCoins",
+		"TotalPets",
+		"Daily",
+	}) do
+		view[key] = d[key]
+	end
+	local ids = {}
+	for _, pet in ipairs(d.Pets) do
+		table.insert(ids, pet.Uid)
+	end
+	local signature = table.concat(ids, ",") .. "|" .. table.concat(d.Equipped, ",")
+	local rt = Game.Runtime[player]
+	if rt and rt.InventorySignature == signature then
+		view.Pets = nil
+		view.Equipped = nil
+	elseif rt then
+		rt.InventorySignature = signature
+	end
+	view.Temporary = s.Temporary
+	view.Event = Game.event()
+	view.CoinMultiplier = Game.mult(d, "Coins")
+	view.DamageMultiplier = Game.mult(d, "Damage")
+	view.RebirthCost = B.rebirthCost(d.Rebirths)
+	view.Level = B.level(d.Crystals)
+	view.AutoMine = Game.Runtime[player] and Game.Runtime[player].AutoMine or false
+	Game.emit(player, "State", view)
+end
+function Game.gems(d, amount, boosted)
+	d.Gems = clamp(d.Gems + math.floor(amount * (boosted and Game.mult(d, "Gems") or 1)))
+end
+function Game.coins(d, amount)
+	amount = math.floor(amount)
+	d.Coins = clamp(d.Coins + amount)
+	d.TotalCoins = clamp(d.TotalCoins + amount)
+	Game.daily(d)
+	d.Daily.Coins = clamp(d.Daily.Coins + amount)
+end
+function Game.pet(d, id)
+	local pet = { Uid = Http:GenerateGUID(false), Id = id }
+	table.insert(d.Pets, pet)
+	d.TotalPets += 1
+	if #d.Equipped < B.petSlots(d) then
+		table.insert(d.Equipped, pet.Uid)
+	end
+	return pet
+end
+function Game.sell(player)
+	local d = Data.Sessions[player].Data
+	if d.Bag <= 0 then
+		return
+	end
+	local value = d.Bag
+	d.Bag = 0
+	d.BagCount = 0
+	Game.coins(d, value)
+	Game.emit(player, "Reward", { Coins = value, Text = "Mochila vendida!" })
+end
+function Game.mine(player, id)
+	if not Data.writable(player) then
+		return
+	end
+	local s = Data.Sessions[player]
+	local d = s.Data
+	local rt = Game.Runtime[player]
+	local c = Map.Crystals[id]
+	if not c or c.Health <= 0 or c.World ~= d.World then
+		return
+	end
+	local radius = d.Passes.Magnet and 55 or 24
+	if not Map.near(player, c.Part.Position, radius) then
+		return
+	end
+	local now = os.clock()
+	local tool = C.Tools[d.Tool]
+	if now - rt.LastHit < tool.Interval then
+		return
+	end
+	if (d.BagCount or 0) >= C.BaseBackpack and not d.Passes.InfiniteBackpack then
+		if d.Passes.AutoSell then
+			Game.sell(player)
+		else
+			if now - rt.LastBagNotice > 3 then
+				Game.notice(player, "Mochila cheia: use SELL ou o botão Vender.")
+				rt.LastBagNotice = now
+			end
+			return
+		end
+	end
+	rt.LastHit = now
+	local destroyed = Map.hit(c, tool.Damage * Game.mult(d, "Damage"))
+	Game.emit(player, "MineFX", { Position = c.Part.Position, Destroyed = destroyed })
+	if destroyed then
+		local level = B.level(d.Crystals)
+		d.Crystals += 1
+		Game.daily(d)
+		d.Daily.Crystals += 1
+		local reward = math.floor(C.Worlds[c.World].Reward * (c.Rare and 8 or 1) * Game.mult(d, "Coins"))
+		d.Bag = clamp(d.Bag + reward)
+		d.BagCount = (d.BagCount or 0) + 1
+		Game.emit(player, "Reward", { Coins = reward, Text = "+" .. B.compact(reward) .. " na mochila" })
+		if d.Passes.AutoSell then
+			Game.sell(player)
+		end
+		if B.level(d.Crystals) > level then
+			Game.gems(d, 5, true)
+			Game.emit(
+				player,
+				"Celebration",
+				{ Kind = "Level", Text = "Nível " .. B.level(d.Crystals) .. " • +5 Gems" }
+			)
+		end
+		local event = Game.event()
+		if event.Active then
+			Game.gems(d, 1, true)
+			if event.Kind == "Exclusive" and #d.Pets < C.MaxPets and rng:NextNumber() < 0.002 then
+				Game.pet(d, "event")
+				Game.emit(player, "Hatch", { { Id = "event" } })
+			end
+		end
+	end
+end
+local function rarity(d)
+	return Economy.rarity(C.Weights, Game.mult(d, "Luck"), rng:NextNumber())
+end
+function Game.hatch(player, count)
+	local d = Data.Sessions[player].Data
+	local rt = Game.Runtime[player]
+	if count ~= 1 and count ~= 3 then
+		return
+	end
+	if count == 3 and not d.Passes.TripleHatch then
+		return Game.notice(player, "Triple Hatch necessário.")
+	end
+	local now = os.clock()
+	local interval = d.Passes.FastHatch and 1 or 3
+	if now - rt.LastHatch < interval then
+		return
+	end
+	if not Map.near(player, Map.Eggs[d.World].Position, 20) then
+		return Game.notice(player, "Aproxime-se do ovo do seu mundo.")
+	end
+	local plan, reason = Economy.hatchPlan(C.Worlds[d.World].EggCost, d.Coins, d.EggCredits, count, #d.Pets, C.MaxPets)
+	if not plan then
+		return Game.notice(
+			player,
+			reason == "Capacity" and "Inventário cheio: libere espaço em Pets." or "Coins insuficientes."
+		)
+	end
+	rt.LastHatch = now
+	d.Coins -= plan.Cost
+	d.EggCredits -= plan.Credits
+	local results = {}
+	for _ = 1, count do
+		local rank = rarity(d)
+		local id = "w" .. d.World .. "r" .. rank
+		local p = Game.pet(d, id)
+		table.insert(results, p)
+		if rank >= 6 then
+			local msg = player.DisplayName .. " encontrou " .. C.Pets[id].Name .. " (" .. C.Pets[id].Rarity .. ")!"
+			outbound:FireAllClients("Global", msg)
+			task.spawn(function()
+				pcall(function()
+					Messaging:PublishAsync("UM_Rare_v1", { Job = game.JobId, Text = msg })
+				end)
+			end)
+		end
+	end
+	Game.daily(d)
+	d.Daily.Eggs += count
+	Game.emit(player, "Hatch", results)
+end
+function Game.rebirth(player)
+	local d = Data.Sessions[player].Data
+	local cost = B.rebirthCost(d.Rebirths)
+	if d.Coins < cost then
+		return Game.notice(player, "Você precisa de " .. B.compact(cost) .. " Coins.")
+	end
+	d.Coins = 0
+	d.Bag = 0
+	d.BagCount = 0
+	d.Tool = 1
+	d.Unlocked = { ["1"] = true }
+	d.World = 1
+	d.Rebirths += 1
+	Game.gems(d, 50 + math.min(d.Rebirths, 10000) * 10, true)
+	Map.teleport(player, 1)
+	Game.emit(
+		player,
+		"Celebration",
+		{ Kind = "Rebirth", Text = "REBIRTH! Multiplicador permanente " .. B.rebirthMultiplier(d.Rebirths) .. "x" }
+	)
+end
+function Game.action(player, action, arg)
+	if not Data.writable(player) then
+		return
+	end
+	local d = Data.Sessions[player].Data
+	local rt = Game.Runtime[player]
+	if action == "Mine" then
+		if type(arg) == "number" and arg == arg then
+			Game.mine(player, arg)
+		end
+		return
+	end
+	if action == "Sync" then
+		Game.snapshot(player)
+		return
+	end
+	if action == "Sell" then
+		Game.sell(player)
+	elseif action == "Tool" then
+		local nextTool = C.Tools[d.Tool + 1]
+		if nextTool and d.Coins >= nextTool.Cost then
+			d.Coins -= nextTool.Cost
+			d.Tool += 1
+			Game.emit(player, "Celebration", { Kind = "Level", Text = nextTool.Name })
+		else
+			Game.notice(player, "Coins insuficientes ou ferramenta máxima.")
+		end
+	elseif action == "World" then
+		if type(arg) ~= "number" or arg % 1 ~= 0 or not C.Worlds[arg] then
+			return
+		end
+		local w = C.Worlds[arg]
+		if not d.Unlocked[tostring(arg)] then
+			if d.Rebirths < w.RequiredRebirths then
+				return Game.notice(player, "Requer " .. w.RequiredRebirths .. " rebirths.")
+			end
+			if not d.Passes.TeleportAllWorlds then
+				if arg > 1 and not d.Unlocked[tostring(arg - 1)] then
+					return Game.notice(player, "Desbloqueie o mundo anterior.")
+				end
+				if d.Coins < w.Cost then
+					return Game.notice(player, "Coins insuficientes.")
+				end
+				d.Coins -= w.Cost
+			end
+			d.Unlocked[tostring(arg)] = true
+		end
+		d.World = arg
+		Map.teleport(player, arg)
+	elseif action == "Hatch" then
+		Game.hatch(player, arg)
+	elseif action == "Rebirth" then
+		Game.rebirth(player)
+	elseif action == "AutoMine" then
+		if d.Passes.AutoMine then
+			rt.AutoMine = not rt.AutoMine
+		else
+			Game.notice(player, "Auto Mine necessário.")
+		end
+	elseif action == "Equip" or action == "DeletePet" then
+		if type(arg) ~= "string" or #arg > 40 then
+			return
+		end
+		for index, pet in ipairs(d.Pets) do
+			if pet.Uid == arg then
+				local equipped = table.find(d.Equipped, arg)
+				if action == "DeletePet" then
+					if equipped then
+						return Game.notice(player, "Desequipe antes de excluir.")
+					end
+					table.remove(d.Pets, index)
+				elseif equipped then
+					table.remove(d.Equipped, equipped)
+				elseif #d.Equipped < B.petSlots(d) then
+					table.insert(d.Equipped, arg)
+				else
+					Game.notice(player, "Slots de pets cheios.")
+				end
+				break
+			end
+		end
+	elseif action == "EquipBest" then
+		local pets = table.clone(d.Pets)
+		table.sort(pets, function(a, b)
+			return C.Pets[a.Id].Coins + C.Pets[a.Id].Damage > C.Pets[b.Id].Coins + C.Pets[b.Id].Damage
+		end)
+		d.Equipped = {}
+		for i = 1, math.min(#pets, B.petSlots(d)) do
+			table.insert(d.Equipped, pets[i].Uid)
+		end
+	elseif action == "Quest" then
+		if type(arg) ~= "number" or not C.Quests[arg] then
+			return
+		end
+		Game.daily(d)
+		local q = C.Quests[arg]
+		if d.Daily.Claimed[tostring(arg)] or (d.Daily[q.Key] or 0) < q.Target then
+			return
+		end
+		if q.Reward == "daily" and #d.Pets >= C.MaxPets then
+			return Game.notice(player, "Libere espaço em Pets.")
+		end
+		d.Daily.Claimed[tostring(arg)] = true
+		Game.gems(d, q.Gems, true)
+		if q.Reward == "daily" then
+			Game.pet(d, "daily")
+		else
+			d.Boosts[q.Reward] = math.max(os.time(), d.Boosts[q.Reward] or 0) + 900
+		end
+		Game.notice(player, "Missão concluída! Gems e recompensa entregues.")
+	elseif action == "Code" then
+		if type(arg) ~= "string" or #arg > 40 then
+			return
+		end
+		arg = string.upper(arg)
+		local code = C.Codes[arg]
+		if code and not d.Codes[arg] then
+			d.Codes[arg] = true
+			Game.gems(d, code.Gems, false)
+			Game.notice(player, "Código resgatado!")
+		else
+			Game.notice(player, "Código inválido ou já resgatado.")
+		end
+	elseif action == "Setting" then
+		if arg == "Music" or arg == "Effects" then
+			d.Settings[arg] = not d.Settings[arg]
+		end
+	end
+	Game.snapshot(player)
+end
+function Game.join(player)
+	Game.Runtime[player] = {
+		LastHit = -10,
+		LastHatch = -10,
+		LastBagNotice = -10,
+		AutoMine = false,
+		LastAFK = os.clock(),
+		Tokens = 35,
+		TokenAt = os.clock(),
+	}
+	local s = Data.Sessions[player]
+	s.Data.BagCount = s.Data.BagCount or 0
+end
+function Game.rate(player)
+	local rt = Game.Runtime[player]
+	if not rt then
+		return false
+	end
+	local now = os.clock()
+	rt.Tokens = math.min(35, rt.Tokens + (now - rt.TokenAt) * 20)
+	rt.TokenAt = now
+	if rt.Tokens < 1 then
+		return false
+	end
+	rt.Tokens -= 1
+	return true
+end
+function Game.tick()
+	Map.step()
+	for player, rt in pairs(Game.Runtime) do
+		if Data.writable(player) then
+			local d = Data.Sessions[player].Data
+			if rt.AutoMine and d.Passes.AutoMine then
+				local nearest, dist = nil, math.huge
+				for id, c in pairs(Map.Crystals) do
+					if
+						c.World == d.World
+						and c.Health > 0
+						and Map.near(player, c.Part.Position, d.Passes.Magnet and 55 or 24)
+					then
+						local root = player.Character.HumanoidRootPart
+						local distance = (root.Position - c.Part.Position).Magnitude
+						if distance < dist then
+							nearest = id
+							dist = distance
+						end
+					end
+				end
+				if nearest then
+					Game.mine(player, nearest)
+				end
+			end
+			if d.Passes.AutoSell and d.Bag > 0 then
+				Game.sell(player)
+			end
+			if Map.near(player, Map.Sell[d.World].Position, 12) then
+				Game.sell(player)
+			end
+			if os.clock() - rt.LastAFK >= 30 then
+				rt.LastAFK = os.clock()
+				for _, zone in ipairs(Map.AFK) do
+					if Map.near(player, zone.Part.Position, 12) and (not zone.VIP or d.Passes.VIP) then
+						local mult = (zone.VIP and 3 or 1) * (d.Passes.PremiumAFK and 2 or 1)
+						local coins = math.floor(20 * mult * Game.mult(d, "Coins"))
+						Game.coins(d, coins)
+						Game.gems(d, mult, true)
+						Game.emit(player, "Reward", { Coins = coins, Text = "AFK • +" .. coins .. " Coins" })
+						break
+					end
+				end
+			end
+		end
+	end
+end
+function Game.subscribe()
+	task.spawn(function()
+		local ok, err = pcall(function()
+			Messaging:SubscribeAsync("UM_Rare_v1", function(message)
+				local payload = message.Data
+				if type(payload) == "table" and payload.Job ~= game.JobId and type(payload.Text) == "string" then
+					outbound:FireAllClients("Global", payload.Text)
+				end
+			end)
+		end)
+		if not ok then
+			warn("Anúncios entre servidores indisponíveis:", err)
+		end
+	end)
+end
+return Game
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="Script" referent="11">
+        <Properties>
+          <string name="Name">Main</string>
+          <token name="RunContext">0</token>
+          <string name="Source"><![CDATA[local Players = game:GetService("Players")
+local C = require(game.ReplicatedStorage.UniverseMiner.Config)
+local Data = require(script.Parent.Data)
+local Map = require(script.Parent.Map)
+local Game = require(script.Parent.Game)
+local Commerce = require(script.Parent.Commerce)
+local Rankings = require(script.Parent.Rankings)
+local shared = game.ReplicatedStorage.UniverseMiner
+local remotes = Instance.new("Folder")
+remotes.Name = "Remotes"
+remotes.Parent = shared
+local action = Instance.new("RemoteEvent")
+action.Name = "Action"
+action.Parent = remotes
+local updates = Instance.new("RemoteEvent")
+updates.Name = "Update"
+updates.Parent = remotes
+Game.init(updates)
+Map.build()
+Commerce.init()
+Game.subscribe()
+local closing = false
+local function character(player, char)
+	local root = char:WaitForChild("HumanoidRootPart", 10)
+	if not root then
+		return
+	end
+	for _ = 1, 100 do
+		if Data.Sessions[player] then
+			break
+		end
+		task.wait(0.1)
+	end
+	local s = Data.Sessions[player]
+	if not s then
+		return
+	end
+	Map.teleport(player, s.Data.World)
+	local hand = char:FindFirstChild("RightHand") or char:FindFirstChild("Right Arm")
+	if hand and not char:FindFirstChild("PickaxeHandle") then
+		local handle = Instance.new("Part")
+		handle.Name = "PickaxeHandle"
+		handle.Size = Vector3.new(0.3, 3, 0.3)
+		handle.Color = Color3.fromRGB(115, 78, 48)
+		handle.CanCollide = false
+		handle.Massless = true
+		handle.Parent = char
+		local weld = Instance.new("Weld")
+		weld.Part0 = hand
+		weld.Part1 = handle
+		weld.C0 = CFrame.new(0, -0.6, -0.5) * CFrame.Angles(math.rad(40), 0, 0)
+		weld.Parent = handle
+		local head = Instance.new("Part")
+		head.Name = "PickaxeHead"
+		head.Size = Vector3.new(2.5, 0.45, 0.55)
+		head.Color = Color3.fromRGB(137, 202, 230)
+		head.Material = Enum.Material.Metal
+		head.CanCollide = false
+		head.Massless = true
+		head.Parent = char
+		local joint = Instance.new("Weld")
+		joint.Part0 = handle
+		joint.Part1 = head
+		joint.C0 = CFrame.new(0, 1.3, 0)
+		joint.Parent = head
+	end
+end
+local function join(player)
+	player.CharacterAdded:Connect(function(char)
+		task.spawn(character, player, char)
+	end)
+	local s, err = Data.load(player)
+	if not s then
+		player:Kick(err)
+		return
+	end
+	if not player.Parent or closing then
+		Data.release(player)
+		return
+	end
+	Game.join(player)
+	local stats = Instance.new("Folder")
+	stats.Name = "leaderstats"
+	stats.Parent = player
+	for _, key in ipairs({ "Coins", "Gems", "Rebirths" }) do
+		local v = Instance.new("NumberValue")
+		v.Name = key
+		v.Parent = stats
+	end
+	if player.Character then
+		task.spawn(character, player, player.Character)
+	end
+	Game.snapshot(player)
+	task.spawn(Commerce.refresh, player)
+end
+Players.PlayerAdded:Connect(join)
+for _, player in ipairs(Players:GetPlayers()) do
+	task.spawn(join, player)
+end
+Players.PlayerRemoving:Connect(function(player)
+	Game.Runtime[player] = nil
+	local s = Data.Sessions[player]
+	if s and not s.Temporary then
+		task.spawn(Rankings.write, player, s.Data)
+	end
+	Data.release(player)
+end)
+action.OnServerEvent:Connect(function(player, key, arg)
+	if type(key) ~= "string" or #key > 20 or not Game.rate(player) or not Data.writable(player) then
+		return
+	end
+	if key == "Purchase" then
+		Commerce.prompt(player, arg)
+	elseif key == "Rankings" then
+		Game.emit(player, "Rankings", { Rows = Rankings.Cache, Updated = Rankings.Updated })
+	else
+		Game.action(player, key, arg)
+	end
+end)
+task.spawn(function()
+	while not closing do
+		Game.tick()
+		task.wait(0.15)
+	end
+end)
+task.spawn(function()
+	while not closing do
+		task.wait(2)
+		for player, s in pairs(Data.Sessions) do
+			if not s.Closing then
+				Game.snapshot(player)
+				local stats = player:FindFirstChild("leaderstats")
+				if stats then
+					for _, key in ipairs({ "Coins", "Gems", "Rebirths" }) do
+						stats[key].Value = s.Data[key]
+					end
+				end
+			end
+		end
+	end
+end)
+task.spawn(function()
+	while not closing do
+		task.wait(C.AutosaveSeconds)
+		for player, s in pairs(Data.Sessions) do
+			if not s.Closing then
+				task.spawn(function()
+					if Data.save(player, false) and not s.Temporary then
+						Rankings.write(player, s.Data)
+					end
+				end)
+			end
+		end
+	end
+end)
+task.spawn(function()
+	while not closing do
+		Rankings.refresh()
+		task.wait(180)
+	end
+end)
+game:BindToClose(function()
+	closing = true
+	local count = 0
+	for player, s in pairs(Data.Sessions) do
+		if not s.Closing then
+			count += 1
+			task.spawn(function()
+				Data.release(player)
+				count -= 1
+			end)
+		end
+	end
+	local deadline = os.clock() + 25
+	while count > 0 and os.clock() < deadline do
+		task.wait(0.1)
+	end
+end)
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="12">
+        <Properties>
+          <string name="Name">Map</string>
+          <string name="Source"><![CDATA[local C = require(game.ReplicatedStorage.UniverseMiner.Config)
+local Map = { Crystals = {}, Spawns = {}, Eggs = {}, AFK = {}, Sell = {} }
+local rng = Random.new()
+local function part(name, size, pos, color, parent)
+	local p = Instance.new("Part")
+	p.Name = name
+	p.Size = size
+	p.Position = pos
+	p.Color = color
+	p.Anchored = true
+	p.TopSurface = Enum.SurfaceType.Smooth
+	p.Parent = parent
+	return p
+end
+local function label(p, text)
+	local gui = Instance.new("BillboardGui")
+	gui.Size = UDim2.fromOffset(230, 55)
+	gui.StudsOffset = Vector3.new(0, 4, 0)
+	gui.MaxDistance = 100
+	gui.Parent = p
+	local t = Instance.new("TextLabel")
+	t.Size = UDim2.fromScale(1, 1)
+	t.BackgroundTransparency = 1
+	t.Text = text
+	t.TextColor3 = Color3.new(1, 1, 1)
+	t.TextStrokeTransparency = 0.2
+	t.Font = Enum.Font.GothamBold
+	t.TextScaled = true
+	t.Parent = gui
+	return t
+end
+function Map.build()
+	local root = Instance.new("Folder")
+	root.Name = "UniverseMap"
+	root.Parent = workspace
+	for i, w in ipairs(C.Worlds) do
+		local folder = Instance.new("Folder")
+		folder.Name = w.Name
+		folder.Parent = root
+		local base = Vector3.new((i - 1) * 280, 0, 0)
+		local col = Color3.fromRGB(table.unpack(w.Color))
+		part("Island", Vector3.new(160, 8, 160), base + Vector3.new(0, -4, 0), col, folder)
+		for _, edge in ipairs({ { 0, 0, 80, 160, 20, 2 }, { 0, 0, -80, 160, 20, 2 }, { 80, 0, 0, 2, 20, 160 }, {
+			-80,
+			0,
+			0,
+			2,
+			20,
+			160,
+		} }) do
+			part(
+				"Boundary",
+				Vector3.new(edge[4], edge[5], edge[6]),
+				base + Vector3.new(edge[1], 7, edge[3]),
+				col:Lerp(Color3.new(0, 0, 0), 0.3),
+				folder
+			)
+		end
+		Map.Spawns[i] = base + Vector3.new(0, 5, 55)
+		local sign = part("WorldSign", Vector3.new(18, 3, 2), base + Vector3.new(0, 5, 69), col, folder)
+		label(sign, w.Name)
+		local egg =
+			part("Egg", Vector3.new(5, 7, 5), base + Vector3.new(-45, 4, 48), Color3.fromRGB(255, 213, 82), folder)
+		egg.Shape = Enum.PartType.Ball
+		egg.Material = Enum.Material.Neon
+		Map.Eggs[i] = egg
+		label(egg, "EGG • " .. w.EggCost .. " Coins")
+		local sell = part(
+			"Sell",
+			Vector3.new(16, 0.5, 16),
+			base + Vector3.new(35, 0.4, 52),
+			Color3.fromRGB(255, 207, 60),
+			folder
+		)
+		Map.Sell[i] = sell
+		label(sell, "SELL • vender mochila")
+		for slot = 1, 20 do
+			local x = ((slot - 1) % 5 - 2) * 22
+			local z = math.floor((slot - 1) / 5) * 22 - 48
+			local crystal = part("Crystal", Vector3.new(5, 9, 5), base + Vector3.new(x, 5, z), col, folder)
+			crystal.Material = Enum.Material.Neon
+			crystal.CanCollide = false
+			local id = i * 100 + slot
+			crystal:SetAttribute("CrystalId", id)
+			local text = label(crystal, "")
+			Map.Crystals[id] = { Part = crystal, Label = text, World = i, RespawnAt = 0 }
+			Map.reset(Map.Crystals[id])
+		end
+		for k = 1, 8 do
+			local p = part(
+				"Decoration",
+				Vector3.new(4, 12 + k % 3 * 4, 4),
+				base + Vector3.new(k % 2 == 0 and -70 or 70, 7, k * 15 - 65),
+				col:Lerp(Color3.new(1, 1, 1), 0.2),
+				folder
+			)
+			if i == 2 then
+				p.Material = Enum.Material.Grass
+			elseif i >= 7 then
+				p.Material = Enum.Material.Neon
+			end
+		end
+	end
+	local spawn = Instance.new("SpawnLocation")
+	spawn.Name = "UniverseSpawn"
+	spawn.Size = Vector3.new(10, 1, 10)
+	spawn.Position = Map.Spawns[1] - Vector3.new(0, 4, 0)
+	spawn.Anchored = true
+	spawn.Neutral = true
+	spawn.Duration = 0
+	spawn.Parent = root
+	for _, vip in ipairs({ false, true }) do
+		local p = part(
+			vip and "VIPAFK" or "AFK",
+			Vector3.new(18, 1, 18),
+			Vector3.new(vip and 55 or -55, 0.5, 68),
+			vip and Color3.fromRGB(255, 201, 40) or Color3.fromRGB(76, 211, 244),
+			root
+		)
+		label(p, vip and "VIP AFK • 3x" or "AFK Rewards")
+		table.insert(Map.AFK, { Part = p, VIP = vip })
+	end
+end
+function Map.reset(c)
+	local rare = rng:NextNumber() < 0.07
+	local w = C.Worlds[c.World]
+	c.Rare = rare
+	c.MaxHealth = w.Health * (rare and 4 or 1)
+	c.Health = c.MaxHealth
+	c.RespawnAt = 0
+	c.Part.Transparency = 0
+	c.Part:SetAttribute("Health", c.Health)
+	c.Part:SetAttribute("MaxHealth", c.MaxHealth)
+	c.Part.Color = rare and Color3.fromRGB(255, 222, 65) or Color3.fromRGB(table.unpack(w.Color))
+	c.Label.Text = (rare and "★ RARE " or "") .. c.Health .. " HP"
+	c.Part:SetAttribute("Alive", true)
+end
+function Map.hit(c, damage)
+	c.Health = math.max(0, c.Health - damage)
+	c.Part:SetAttribute("Health", c.Health)
+	c.Label.Text = c.Health .. " HP"
+	if c.Health == 0 then
+		c.Part.Transparency = 1
+		c.Label.Text = ""
+		c.Part:SetAttribute("Alive", false)
+		c.RespawnAt = os.clock() + 5
+		return true
+	end
+	return false
+end
+function Map.step()
+	for _, c in pairs(Map.Crystals) do
+		if c.RespawnAt > 0 and os.clock() >= c.RespawnAt then
+			Map.reset(c)
+		end
+	end
+end
+function Map.teleport(player, world)
+	local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+	if root then
+		root.CFrame = CFrame.new(Map.Spawns[world])
+	end
+end
+function Map.near(player, position, distance)
+	local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+	local h = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+	return root and h and h.Health > 0 and (root.Position - position).Magnitude <= distance
+end
+return Map
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="13">
+        <Properties>
+          <string name="Name">Rankings</string>
+          <string name="Source"><![CDATA[local DSS = game:GetService("DataStoreService")
+local Players = game:GetService("Players")
+local C = require(game.ReplicatedStorage.UniverseMiner.Config)
+local Rankings = { Cache = {}, Updated = 0, Busy = false }
+local stores = {}
+for _, key in ipairs({ "Coins", "Rebirths", "Pets", "Gems" }) do
+	stores[key] = DSS:GetOrderedDataStore(C.DataStore .. "_Rank_" .. key)
+end
+-- OrderedDataStore accepts signed integers, not arbitrary large doubles.
+local function encode(value)
+	return math.floor(math.log10(1 + value) * 1000000)
+end
+local function decode(value)
+	return 10 ^ (value / 1000000) - 1
+end
+function Rankings.write(player, d)
+	local values = { Coins = d.TotalCoins, Rebirths = d.Rebirths, Pets = d.TotalPets, Gems = d.Gems }
+	for key, value in pairs(values) do
+		local ok, err = pcall(function()
+			stores[key]:SetAsync(tostring(player.UserId), encode(value))
+		end)
+		if not ok then
+			warn("Ranking " .. key .. ":", err)
+		end
+	end
+end
+function Rankings.refresh()
+	if Rankings.Busy then
+		return
+	end
+	Rankings.Busy = true
+	for key, store in pairs(stores) do
+		local ok, result = pcall(function()
+			return store:GetSortedAsync(false, 20):GetCurrentPage()
+		end)
+		if ok then
+			local rows = {}
+			for _, entry in ipairs(result) do
+				local userId = tonumber(entry.key)
+				local name = "User " .. entry.key
+				if userId then
+					local found, username = pcall(function()
+						return Players:GetNameFromUserIdAsync(userId)
+					end)
+					if found then
+						name = username
+					end
+				end
+				table.insert(rows, { Name = name, Value = decode(entry.value), UserId = userId })
+			end
+			Rankings.Cache[key] = rows
+		else
+			warn("Leitura de ranking indisponível:", key)
+		end
+	end
+	Rankings.Updated = os.time()
+	Rankings.Busy = false
+end
+return Rankings
+]]></string>
+        </Properties>
+      </Item>
+    </Item>
+  </Item>
+  <Item class="StarterPlayer" referent="14">
+    <Properties>
+      <string name="Name">StarterPlayer</string>
+    </Properties>
+    <Item class="StarterPlayerScripts" referent="15">
+      <Properties>
+        <string name="Name">StarterPlayerScripts</string>
+      </Properties>
+      <Item class="Folder" referent="16">
+        <Properties>
+          <string name="Name">UniverseMiner</string>
+        </Properties>
+        <Item class="LocalScript" referent="17">
+          <Properties>
+            <string name="Name">Main</string>
+            <string name="Source"><![CDATA[local Players = game:GetService("Players")
+local UIS = game:GetService("UserInputService")
+local CAS = game:GetService("ContextActionService")
+local Tween = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local Debris = game:GetService("Debris")
+local GuiService = game:GetService("GuiService")
+local SoundService = game:GetService("SoundService")
+local player = Players.LocalPlayer
+local shared = game.ReplicatedStorage:WaitForChild("UniverseMiner")
+local C = require(shared.Config)
+local B = require(shared.Balance)
+local remotes = shared:WaitForChild("Remotes")
+local action = remotes:WaitForChild("Action")
+local update = remotes:WaitForChild("Update")
+local state = nil
+local menu = nil
+local selectedPet = nil
+local confirmDelete = nil
+local confirmRebirth = false
+local bg = Color3.fromRGB(21, 23, 45)
+local accent = Color3.fromRGB(96, 82, 244)
+local gold = Color3.fromRGB(255, 205, 65)
+local gui = Instance.new("ScreenGui")
+gui.Name = "UniverseMinerUI"
+gui.ResetOnSpawn = false
+gui.IgnoreGuiInset = false
+gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+gui.Parent = player:WaitForChild("PlayerGui")
+local function corner(p, r)
+	local c = Instance.new("UICorner")
+	c.CornerRadius = UDim.new(0, r or 12)
+	c.Parent = p
+end
+local function frame(parent, size, pos, color)
+	local f = Instance.new("Frame")
+	f.Size = size
+	f.Position = pos
+	f.BackgroundColor3 = color or bg
+	f.BorderSizePixel = 0
+	f.Parent = parent
+	corner(f)
+	return f
+end
+local function text(parent, value, size, pos, fontSize)
+	local t = Instance.new("TextLabel")
+	t.Size = size
+	t.Position = pos or UDim2.new()
+	t.BackgroundTransparency = 1
+	t.Text = value
+	t.TextColor3 = Color3.new(1, 1, 1)
+	t.TextSize = fontSize or 17
+	t.Font = Enum.Font.GothamBold
+	t.TextWrapped = true
+	t.Parent = parent
+	return t
+end
+local function button(parent, title, fn, color)
+	local b = Instance.new("TextButton")
+	b.Name = title
+	b.Text = title
+	b.TextColor3 = Color3.new(1, 1, 1)
+	b.Font = Enum.Font.GothamBold
+	b.TextSize = 16
+	b.TextWrapped = true
+	b.Size = UDim2.new(1, -12, 0, 48)
+	b.BackgroundColor3 = color or accent
+	b.BorderSizePixel = 0
+	b.Selectable = true
+	b.Parent = parent
+	corner(b)
+	b.Activated:Connect(fn)
+	return b
+end
+local function send(key, arg)
+	action:FireServer(key, arg)
+end
+local top = frame(gui, UDim2.new(1, -24, 0, 94), UDim2.fromOffset(12, 8))
+local title = text(top, C.Title, UDim2.new(1, 0, 0, 25), UDim2.fromOffset(0, 3), 19)
+local stats = text(top, "Carregando dados…", UDim2.new(1, -12, 0, 30), UDim2.fromOffset(6, 29), 16)
+local goal = text(top, "", UDim2.new(1, -12, 0, 28), UDim2.fromOffset(6, 60), 14)
+goal.TextColor3 = gold
+local nav = Instance.new("ScrollingFrame")
+nav.Size = UDim2.fromOffset(116, 460)
+nav.Position = UDim2.fromOffset(12, 112)
+nav.BackgroundColor3 = bg
+nav.BorderSizePixel = 0
+nav.ScrollBarThickness = 3
+nav.AutomaticCanvasSize = Enum.AutomaticSize.Y
+nav.CanvasSize = UDim2.new()
+nav.Parent = gui
+corner(nav)
+local navLayout = Instance.new("UIListLayout")
+navLayout.Padding = UDim.new(0, 4)
+navLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+navLayout.Parent = nav
+local panel = frame(gui, UDim2.new(0.68, 0, 0.68, 0), UDim2.new(0.28, 0, 0.19, 0))
+panel.Visible = false
+local header = text(panel, "", UDim2.new(1, -70, 0, 45), UDim2.fromOffset(12, 4), 22)
+header.TextXAlignment = Enum.TextXAlignment.Left
+local close = button(panel, "×", function()
+	panel.Visible = false
+	menu = nil
+	GuiService.SelectedObject = nil
+end)
+close.Size = UDim2.fromOffset(44, 38)
+close.Position = UDim2.new(1, -52, 0, 6)
+local list = Instance.new("ScrollingFrame")
+list.Name = "Content"
+list.Position = UDim2.fromOffset(10, 55)
+list.Size = UDim2.new(1, -20, 1, -65)
+list.BackgroundTransparency = 1
+list.BorderSizePixel = 0
+list.ScrollBarThickness = 5
+list.AutomaticCanvasSize = Enum.AutomaticSize.Y
+list.CanvasSize = UDim2.new()
+list.Parent = panel
+local layout = Instance.new("UIListLayout")
+layout.Padding = UDim.new(0, 8)
+layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+layout.Parent = list
+local controls = frame(gui, UDim2.fromOffset(310, 100), UDim2.new(1, -322, 1, -112))
+local mine
+mine = button(controls, "MINERAR • R2 / clique", function()
+	send("Mine", mine:GetAttribute("Target"))
+end, gold)
+mine.TextColor3 = bg
+mine.Position = UDim2.fromOffset(6, 6)
+local sell = button(controls, "Vender mochila • Y", function()
+	send("Sell")
+end, Color3.fromRGB(40, 156, 95))
+sell.Size = UDim2.new(0.5, -8, 0, 36)
+sell.Position = UDim2.fromOffset(6, 60)
+local auto = button(controls, "Auto Mine", function()
+	send("AutoMine")
+end)
+auto.Size = UDim2.new(0.5, -8, 0, 36)
+auto.Position = UDim2.new(0.5, 2, 0, 60)
+local toast = text(gui, "", UDim2.new(0.7, 0, 0, 66), UDim2.new(0.15, 0, 0.75, 0), 22)
+toast.ZIndex = 20
+toast.TextStrokeTransparency = 0.3
+local toastSerial = 0
+local function notify(value)
+	toastSerial += 1
+	local serial = toastSerial
+	toast.Text = tostring(value)
+	task.delay(3, function()
+		if toastSerial == serial then
+			toast.Text = ""
+		end
+	end)
+end
+local function sound(kind)
+	if state and state.Settings.Effects == false then
+		return
+	end
+	local s = Instance.new("Sound")
+	s.SoundId = C.SoundIds[kind] ~= "" and C.SoundIds[kind] or "rbxasset://sounds/electronicpingshort.wav"
+	s.Volume = 0.2
+	s.PlaybackSpeed = kind == "Mine" and 1.6 or kind == "Rebirth" and 0.7 or 1
+	s.Parent = SoundService
+	s:Play()
+	Debris:AddItem(s, 5)
+end
+local function burst(position, count)
+	if state and state.Settings.Effects == false then
+		return
+	end
+	local p = Instance.new("Part")
+	p.Shape = Enum.PartType.Ball
+	p.Size = Vector3.new(0.5, 0.5, 0.5)
+	p.Position = position
+	p.Anchored = true
+	p.CanCollide = false
+	p.CanQuery = false
+	p.Material = Enum.Material.Neon
+	p.Color = gold
+	p.Parent = workspace
+	local light = Instance.new("PointLight")
+	light.Color = gold
+	light.Range = 12
+	light.Brightness = 2
+	light.Parent = p
+	local emitter = Instance.new("ParticleEmitter")
+	emitter.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+	emitter.Rate = 0
+	emitter.Lifetime = NumberRange.new(0.2, 0.4)
+	emitter.Speed = NumberRange.new(4, 9)
+	emitter.SpreadAngle = Vector2.new(180, 180)
+	emitter.Parent = p
+	emitter:Emit(count)
+	Tween:Create(p, TweenInfo.new(0.3), { Size = Vector3.new(4, 4, 4), Transparency = 1 }):Play()
+	Debris:AddItem(p, 0.4)
+end
+local function characterBurst(count)
+	local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+	if root then
+		burst(root.Position, count)
+	end
+end
+local music = Instance.new("Sound")
+music.Name = "UniverseMusic"
+music.Looped = true
+music.Volume = 0.15
+music.Parent = SoundService
+if C.MusicId and C.MusicId ~= "" then
+	music.SoundId = C.MusicId
+	music:Play()
+end
+local function row(value)
+	local t = text(list, value, UDim2.new(1, -12, 0, 62), nil, 15)
+	t.TextXAlignment = Enum.TextXAlignment.Left
+	return t
+end
+local render
+local rankData = {}
+local function open(name)
+	menu = name
+	panel.Visible = true
+	confirmDelete = nil
+	confirmRebirth = false
+	render()
+	if name == "Events" then
+		send("Rankings")
+	end
+	if UIS.GamepadEnabled then
+		GuiService.SelectedObject = list:FindFirstChildWhichIsA("TextButton") or close
+	end
+end
+for _, name in ipairs({ "Shop", "Pets", "Inventory", "Worlds", "Rebirth", "Quests", "Codes", "Events", "Settings" }) do
+	local b = button(nav, name, function()
+		if menu == name then
+			menu = nil
+			panel.Visible = false
+		else
+			open(name)
+		end
+	end)
+	b.Size = UDim2.new(1, -10, 0, 46)
+end
+local codeValue = ""
+render = function()
+	if not state or not menu then
+		return
+	end
+	if UIS:GetFocusedTextBox() then
+		return
+	end
+	local scroll = list.CanvasPosition
+	local chosen = GuiService.SelectedObject
+	local chosenName = chosen and chosen.Name
+	for _, child in ipairs(list:GetChildren()) do
+		if child ~= layout then
+			child:Destroy()
+		end
+	end
+	header.Text = menu
+	if menu == "Shop" then
+		local nextTool = C.Tools[state.Tool + 1]
+		row(
+			"Atual: "
+				.. C.Tools[state.Tool].Name
+				.. " • Dano "
+				.. B.compact(C.Tools[state.Tool].Damage * state.DamageMultiplier)
+		)
+		if nextTool then
+			button(list, "Comprar " .. nextTool.Name .. " • " .. B.compact(nextTool.Cost) .. " Coins", function()
+				send("Tool")
+			end)
+		else
+			row("Todas as 36 picaretas desbloqueadas!")
+		end
+		row(
+			"Compras em Robux: preço exibido na confirmação oficial do Roblox. Boosts usam tempo real, inclusive offline."
+		)
+		local keys = {}
+		for key in pairs(C.Passes) do
+			table.insert(keys, key)
+		end
+		table.sort(keys)
+		for _, key in ipairs(keys) do
+			if C.Passes[key] > 0 then
+				button(list, (state.Passes[key] and "✓ " or "") .. C.PassLabels[key], function()
+					send("Purchase", { Type = "Pass", Key = key })
+				end)
+			end
+		end
+		local productKeys = {}
+		for key in pairs(C.Products) do
+			table.insert(productKeys, key)
+		end
+		table.sort(productKeys)
+		for _, key in ipairs(productKeys) do
+			local p = C.Products[key]
+			if p.Id > 0 then
+				button(list, p.Label, function()
+					send("Purchase", { Type = "Product", Key = key })
+				end, Color3.fromRGB(34, 145, 157))
+			end
+		end
+	elseif menu == "Pets" then
+		row(
+			#state.Pets
+				.. " / "
+				.. C.MaxPets
+				.. " pets • "
+				.. #state.Equipped
+				.. " / "
+				.. B.petSlots(state)
+				.. " equipados"
+		)
+		button(list, "Equipar melhores", function()
+			send("EquipBest")
+		end)
+		if selectedPet then
+			button(
+				list,
+				confirmDelete == selectedPet and "CONFIRMAR exclusão permanente"
+					or "Excluir pet selecionado (desequipado)",
+				function()
+					if confirmDelete == selectedPet then
+						send("DeletePet", selectedPet)
+						confirmDelete = nil
+						selectedPet = nil
+					else
+						confirmDelete = selectedPet
+						render()
+					end
+				end,
+				Color3.fromRGB(171, 57, 81)
+			)
+		end
+		for _, pet in ipairs(state.Pets) do
+			local info = C.Pets[pet.Id]
+			local equipped = table.find(state.Equipped, pet.Uid)
+			local b = button(
+				list,
+				(equipped and "✓ " or "")
+					.. info.Name
+					.. " • "
+					.. info.Rarity
+					.. " | +"
+					.. math.floor(info.Coins * 100)
+					.. "% Coins",
+				function()
+					selectedPet = pet.Uid
+					send("Equip", pet.Uid)
+				end
+			)
+			b.Name = pet.Uid
+		end
+	elseif menu == "Inventory" then
+		row(
+			"Mochila: "
+				.. (state.BagCount or 0)
+				.. " / "
+				.. (state.Passes.InfiniteBackpack and "∞" or C.BaseBackpack)
+				.. " cristais\nValor: "
+				.. B.compact(state.Bag)
+				.. " Coins • créditos de ovo: "
+				.. state.EggCredits
+		)
+		button(list, "Vender agora", function()
+			send("Sell")
+		end)
+		row("Picaretas desbloqueadas: " .. state.Tool .. " / " .. #C.Tools .. " • a melhor está equipada")
+		for key, ends in pairs(state.Boosts) do
+			row(key .. " Boost • " .. math.max(0, ends - os.time()) .. "s restantes")
+		end
+		row(
+			"Ovo do mundo atual: "
+				.. B.compact(C.Worlds[state.World].EggCost)
+				.. " Coins por abertura. Aproxime-se do ovo amarelo."
+		)
+		button(list, "Abrir 1 ovo", function()
+			send("Hatch", 1)
+		end, gold)
+		if state.Passes.TripleHatch then
+			button(list, "Abrir 3 ovos", function()
+				send("Hatch", 3)
+			end)
+		end
+		local luck = (state.Passes.DoubleLuck and 2 or 1)
+			* ((state.Boosts.Luck or 0) > os.time() and 2 or 1)
+			* (state.Event.Active and state.Event.Kind == "Luck" and 2 or 1)
+		local total = 0
+		for i, w in ipairs(C.Weights) do
+			total += w * (i >= 3 and luck or 1)
+		end
+		for i, name in ipairs(C.Rarities) do
+			row(name .. " • " .. string.format("%.4f%%", C.Weights[i] * (i >= 3 and luck or 1) / total * 100))
+		end
+	elseif menu == "Worlds" then
+		for i, w in ipairs(C.Worlds) do
+			button(
+				list,
+				(state.World == i and "▶ " or "")
+					.. w.Name
+					.. " • "
+					.. (state.Unlocked[tostring(i)] and "Viajar" or B.compact(w.Cost) .. " Coins")
+					.. (w.RequiredRebirths > 0 and " • " .. w.RequiredRebirths .. " rebirths" or ""),
+				function()
+					send("World", i)
+				end,
+				Color3.fromRGB(table.unpack(w.Color))
+			)
+		end
+	elseif menu == "Rebirth" then
+		row(
+			"Rebirths: "
+				.. state.Rebirths
+				.. " • permanente: "
+				.. B.rebirthMultiplier(state.Rebirths)
+				.. "x\nCusto: "
+				.. B.compact(state.RebirthCost)
+				.. " Coins"
+		)
+		row(
+			"Reinicia Coins, mochila, ferramentas e mundos. Mantém Gems, pets, passes, missões e multiplicador permanente. Rebirths 2 e 4 abrem requisitos de Void e Heaven."
+		)
+		button(list, confirmRebirth and "CONFIRMAR REBIRTH" or "Fazer rebirth", function()
+			if confirmRebirth or state.Passes.InstantRebirth then
+				send("Rebirth")
+				confirmRebirth = false
+			else
+				confirmRebirth = true
+				render()
+			end
+		end, gold)
+	elseif menu == "Quests" then
+		row("Missões diárias • reset às 00:00 UTC • recompensas resgatadas manualmente")
+		for i, q in ipairs(C.Quests) do
+			button(
+				list,
+				q.Key
+					.. ": "
+					.. B.compact(state.Daily[q.Key] or 0)
+					.. " / "
+					.. B.compact(q.Target)
+					.. " • "
+					.. q.Gems
+					.. " Gems + "
+					.. q.Reward
+					.. (state.Daily.Claimed[tostring(i)] and " ✓" or " • Resgatar"),
+				function()
+					send("Quest", i)
+				end
+			)
+		end
+	elseif menu == "Codes" then
+		row("Digite um código. Cada código pode ser usado uma vez por conta.")
+		local input = Instance.new("TextBox")
+		input.Name = "CodeInput"
+		input.Size = UDim2.new(1, -12, 0, 48)
+		input.BackgroundColor3 = Color3.fromRGB(48, 51, 82)
+		input.TextColor3 = Color3.new(1, 1, 1)
+		input.TextSize = 20
+		input.Font = Enum.Font.GothamBold
+		input.PlaceholderText = "Código"
+		input.Text = codeValue
+		input.ClearTextOnFocus = false
+		input.Parent = list
+		corner(input)
+		input:GetPropertyChangedSignal("Text"):Connect(function()
+			codeValue = input.Text
+		end)
+		button(list, "Resgatar", function()
+			input:ReleaseFocus()
+			send("Code", codeValue)
+		end)
+	elseif menu == "Events" then
+		local e = state.Event
+		row(
+			e.Active
+					and (e.Kind == "Exclusive" and "Evento: chance de Event Nebula minerando" or "Evento: 2x " .. e.Kind)
+				or "Sem evento ativo"
+		)
+		row("Próximo evento em " .. math.max(0, e.Next - os.time()) .. "s • duração 15 min a cada 2 h")
+		row(
+			"Durante eventos: cristais concedem Gems. Rankings globais atualizados periodicamente; Coins e Pets representam totais históricos."
+		)
+		button(list, "Atualizar rankings", function()
+			send("Rankings")
+		end)
+		for _, key in ipairs({ "Coins", "Rebirths", "Pets", "Gems" }) do
+			row("Global " .. key)
+			if not rankData[key] then
+				row("Indisponível ou aguardando DataStore.")
+			else
+				for i, entry in ipairs(rankData[key]) do
+					row(i .. ". " .. entry.Name .. " • " .. B.compact(entry.Value))
+				end
+			end
+		end
+	elseif menu == "Settings" then
+		for _, key in ipairs({ "Music", "Effects" }) do
+			button(list, key .. ": " .. (state.Settings[key] and "ON" or "OFF"), function()
+				send("Setting", key)
+			end)
+		end
+		row(
+			"PC: clique num cristal • Controle: R2 minera o cristal próximo, Y vende, X abre ovo, B fecha menu • Toque: toque no cristal ou use MINERAR."
+		)
+		row(
+			state.Temporary and "STUDIO: dados temporários. Nada será salvo nesta sessão."
+				or "Salvamento automático ativo; aguarde ao sair."
+		)
+	end
+	list.CanvasPosition = scroll
+	if chosenName and UIS.GamepadEnabled then
+		local target = list:FindFirstChild(chosenName)
+		if target and target:IsA("GuiButton") then
+			GuiService.SelectedObject = target
+		end
+	end
+end
+local function resize()
+	local camera = workspace.CurrentCamera
+	if not camera then
+		return
+	end
+	local size = camera.ViewportSize
+	local small = size.X < 760 or size.Y < 600
+	nav.Size = UDim2.fromOffset(small and 88 or 116, math.min(small and 333 or 460, size.Y - 128))
+	for _, b in ipairs(nav:GetChildren()) do
+		if b:IsA("TextButton") then
+			b.Size = UDim2.new(1, -8, 0, small and 33 or 46)
+			b.TextSize = small and 12 or 16
+		end
+	end
+	panel.Position = UDim2.fromOffset(small and 105 or 140, 112)
+	panel.Size = UDim2.new(1, small and -117 or -160, 1, -124)
+	controls.Size = UDim2.fromOffset(small and 245 or 310, 100)
+	controls.Position = UDim2.new(1, small and -257 or -322, 1, -112)
+	stats.TextSize = small and 12 or 16
+	title.TextSize = small and 15 or 19
+	goal.TextSize = small and 11 or 14
+end
+if workspace.CurrentCamera then
+	workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(resize)
+end
+resize()
+local function targetAt(position)
+	local camera = workspace.CurrentCamera
+	if not camera then
+		return
+	end
+	local ray = camera:ScreenPointToRay(position.X, position.Y)
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.FilterDescendantsInstances = player.Character and { player.Character } or {}
+	local hit = workspace:Raycast(ray.Origin, ray.Direction * 500, params)
+	if hit and hit.Instance:GetAttribute("CrystalId") then
+		send("Mine", hit.Instance:GetAttribute("CrystalId"))
+	end
+end
+UIS.InputBegan:Connect(function(input, processed)
+	if processed then
+		return
+	end
+	if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		targetAt(UIS:GetMouseLocation())
+	end
+end)
+UIS.TouchTapInWorld:Connect(function(position, processed)
+	if not processed then
+		targetAt(position)
+	end
+end)
+CAS:BindAction("UMMine", function(_, phase)
+	if phase == Enum.UserInputState.Begin then
+		send("Mine", mine:GetAttribute("Target"))
+	end
+	return Enum.ContextActionResult.Sink
+end, false, Enum.KeyCode.ButtonR2)
+CAS:BindAction("UMSell", function(_, phase)
+	if phase == Enum.UserInputState.Begin then
+		send("Sell")
+	end
+	return Enum.ContextActionResult.Sink
+end, false, Enum.KeyCode.ButtonY)
+CAS:BindAction("UMHatch", function(_, phase)
+	if phase == Enum.UserInputState.Begin then
+		send("Hatch", 1)
+	end
+	return Enum.ContextActionResult.Sink
+end, false, Enum.KeyCode.ButtonX)
+CAS:BindAction("UMClose", function(_, phase)
+	if phase == Enum.UserInputState.Begin then
+		panel.Visible = false
+		menu = nil
+		GuiService.SelectedObject = nil
+	end
+	return Enum.ContextActionResult.Sink
+end, false, Enum.KeyCode.ButtonB)
+local petVisuals = {}
+local petSignature = ""
+local function rebuildPets()
+	local signature = table.concat(state.Equipped, ",")
+	if signature == petSignature then
+		return
+	end
+	petSignature = signature
+	for _, p in ipairs(petVisuals) do
+		p:Destroy()
+	end
+	petVisuals = {}
+	for _, uid in ipairs(state.Equipped) do
+		for _, pet in ipairs(state.Pets) do
+			if pet.Uid == uid then
+				local info = C.Pets[pet.Id]
+				local p = Instance.new("Part")
+				p.Name = info.Name
+				p.Size = Vector3.new(1.8, 1.8, 1.8)
+				p.Anchored = true
+				p.CanCollide = false
+				p.CanQuery = false
+				p.Material = Enum.Material.Neon
+				p.Color = Color3.fromHSV(info.Rank / 8, 0.65, 1)
+				p.Parent = workspace
+				local billboard = Instance.new("BillboardGui")
+				billboard.Size = UDim2.fromOffset(120, 24)
+				billboard.StudsOffset = Vector3.new(0, 1.8, 0)
+				billboard.MaxDistance = 60
+				billboard.Parent = p
+				text(billboard, info.Name, UDim2.fromScale(1, 1), nil, 11)
+				table.insert(petVisuals, p)
+				break
+			end
+		end
+	end
+end
+local nextScan = 0
+RunService.RenderStepped:Connect(function()
+	local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+	if not root then
+		return
+	end
+	controls.Visible = not panel.Visible
+	local now = os.clock()
+	for i, p in ipairs(petVisuals) do
+		local angle = i * math.pi * 2 / math.max(1, #petVisuals) + now * 0.5
+		local pos = root.Position + Vector3.new(math.cos(angle) * 4, math.sin(now * 3 + i) * 0.4, math.sin(angle) * 4)
+		p.CFrame = CFrame.new(pos, root.Position)
+	end
+	if now < nextScan then
+		return
+	end
+	nextScan = now + 0.25
+	local map = workspace:FindFirstChild("UniverseMap")
+	if not map or not state then
+		return
+	end
+	local folder = map:FindFirstChild(C.Worlds[state.World].Name)
+	local nearest = nil
+	local dist = state.Passes.Magnet and 55 or 24
+	if folder then
+		for _, p in ipairs(folder:GetChildren()) do
+			if p:IsA("BasePart") and p:GetAttribute("Alive") then
+				local d = (p.Position - root.Position).Magnitude
+				if d < dist then
+					dist = d
+					nearest = p
+				end
+			end
+		end
+	end
+	mine:SetAttribute("Target", nearest and nearest:GetAttribute("CrystalId") or nil)
+	mine.Text = nearest and ("MINERAR • " .. B.compact(nearest:GetAttribute("Health")) .. " HP")
+		or "Aproxime-se de um cristal"
+end)
+local hatchQueue = {}
+local hatching = false
+local function hatch(results)
+	table.insert(hatchQueue, results)
+	if hatching then
+		return
+	end
+	hatching = true
+	task.spawn(function()
+		while #hatchQueue > 0 do
+			local pets = table.remove(hatchQueue, 1)
+			local overlay = frame(gui, UDim2.fromScale(0.65, 0.4), UDim2.fromScale(0.2, 0.28), accent)
+			overlay.ZIndex = 30
+			local t = text(overlay, "✦ ABRINDO OVO ✦", UDim2.fromScale(1, 1), nil, 28)
+			t.ZIndex = 31
+			for _ = 1, 3 do
+				overlay.Rotation = -5
+				Tween:Create(overlay, TweenInfo.new(0.18), { Rotation = 5 }):Play()
+				task.wait(0.18)
+			end
+			overlay.Rotation = 0
+			local lines = {}
+			for _, p in ipairs(pets) do
+				local info = C.Pets[p.Id]
+				table.insert(lines, info.Name .. " • " .. info.Rarity)
+				if info.Rank >= 5 then
+					overlay.BackgroundColor3 = gold
+					characterBurst(30)
+				end
+			end
+			t.Text = table.concat(lines, "\n")
+			sound("Hatch")
+			task.wait(1.4)
+			overlay:Destroy()
+		end
+		hatching = false
+	end)
+end
+update.OnClientEvent:Connect(function(kind, payload)
+	if kind == "State" then
+		if state then
+			payload.Pets = payload.Pets or state.Pets
+			payload.Equipped = payload.Equipped or state.Equipped
+		end
+		state = payload
+		stats.Text = "Coins "
+			.. B.compact(state.Coins)
+			.. "   •   Gems "
+			.. B.compact(state.Gems)
+			.. "   •   Rebirths "
+			.. state.Rebirths
+			.. "   •   Lv "
+			.. state.Level
+		local nextTool = C.Tools[state.Tool + 1]
+		goal.Text = (state.Temporary and "⚠ STUDIO TEMPORÁRIO • " or "")
+			.. C.Worlds[state.World].Name
+			.. " • "
+			.. string.format("%.1fx Coins", state.CoinMultiplier)
+			.. " • "
+			.. (
+				nextTool and "Meta: " .. nextTool.Name .. " • " .. B.compact(nextTool.Cost)
+				or "Meta: próximo rebirth"
+			)
+		auto.Text = state.AutoMine and "Auto: ON" or "Auto Mine"
+		music.Volume = state.Settings.Music and 0.15 or 0
+		rebuildPets()
+		if panel.Visible then
+			render()
+		end
+	elseif kind == "Notice" or kind == "Global" then
+		notify(payload)
+	elseif kind == "Reward" then
+		notify(payload.Text or "+Coins")
+		sound("Reward")
+	elseif kind == "Celebration" then
+		notify(payload.Text)
+		sound(payload.Kind)
+		characterBurst(payload.Kind == "Rebirth" and 50 or 24)
+		if state and state.Settings.Effects == false then
+			return
+		end
+		local flash = frame(gui, UDim2.fromScale(1, 1), UDim2.new(), gold)
+		flash.BackgroundTransparency = 0.7
+		flash.ZIndex = 25
+		Tween:Create(flash, TweenInfo.new(0.7), { BackgroundTransparency = 1 }):Play()
+		Debris:AddItem(flash, 0.8)
+	elseif kind == "Hatch" then
+		hatch(payload)
+	elseif kind == "Rankings" then
+		rankData = payload.Rows
+		if menu == "Events" then
+			render()
+		end
+	elseif kind == "MineFX" then
+		sound("Mine")
+		if state and state.Settings.Effects == false then
+			return
+		end
+		burst(payload.Position, payload.Destroyed and 14 or 4)
+	end
+end)
+send("Sync")
+]]></string>
+          </Properties>
+        </Item>
+      </Item>
+    </Item>
+  </Item>
+</roblox>

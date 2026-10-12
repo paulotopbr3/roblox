@@ -1,0 +1,7 @@
+*.rbxl
+*.rbxlx
+*.rbxm
+*.rbxmx
+__pycache__/
+*.pyc
+!UniverseMiner.rbxlx

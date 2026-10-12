@@ -1,0 +1,45 @@
+# Arquitetura e decisões
+
+## Árvore no Studio
+
+```text
+ReplicatedStorage/UniverseMiner
+  Config, Balance, Economy (ModuleScripts)
+  Remotes/Action, Update (RemoteEvents, criados em runtime)
+ServerScriptService/UniverseMiner
+  Main (Script)
+  Data, Game, Map, Commerce, Rankings (ModuleScripts)
+StarterPlayer/StarterPlayerScripts/UniverseMiner/Main (LocalScript)
+Workspace/UniverseMap (gerado em runtime)
+PlayerGui/UniverseMinerUI (gerado no cliente)
+```
+
+`Action` aceita intenções: Mine, Sell, Tool, World, Hatch, Rebirth, AutoMine, Equip, DeletePet, EquipBest, Quest, Code, Setting, Purchase, Rankings e Sync. `Update` entrega State, Notice, Reward, MineFX, Celebration, Hatch, Global e Rankings. Valores arbitrários do cliente nunca determinam recompensas; distância, mundo, HP, cooldown, slots, saldo e propriedade são verificados no servidor. O limitador permite burst de 35 chamadas e reposição de 20/s por jogador. Não há RemoteFunction que bloqueie o cliente.
+
+## Economia
+
+Cristais têm HP individual compartilhado entre jogadores, 7% de chance de serem raros (4x HP, 8x recompensa), cinco segundos de respawn e recompensa para quem dá o último golpe. Não há recompensa dupla: a transição de HP para zero não faz yield. Cristais dão valor à mochila; vender converte esse valor em Coins. O servidor valida capacidade antes de causar dano. A venda manual é acessível gratuitamente; Auto Sell automatiza a mesma ação. Infinite Backpack remove o limite de 30 cristais.
+
+Multiplicadores de pets são **aditivos** dentro de cada atributo; rebirth, ferramenta, passe, boost e evento são multiplicativos. Gems compradas têm quantidade fixa e não são multiplicadas por passes. Rebirth reinicia Coins, mochila, ferramenta e mundos; pets, Gems, missões, boosts e histórico são preservados. Custo cresce em 1,65x, com limite numérico; multiplicador cresce em +0,5x por rebirth. O limite de números é 1e150, portanto “infinito” significa sem limite configurado de rebirths, dentro da precisão finita dos doubles.
+
+Ovos têm probabilidades base Common 60%, Uncommon 25%, Rare 10%, Epic 4%, Legendary 0,85%, Mythical 0,14%, Secret 0,01%. Luck multiplica os pesos Rare ou superiores e renormaliza a distribuição; a UI mostra as chances com os boosts atuais. Créditos de ovos substituem o custo em Coins de aberturas futuras; 10/100 ovos não são abertos imediatamente. Limite normal: 400 pets; compras de pet e direito de Exclusive Pets nunca são descartados por inventário cheio e podem exceder esse limite. Aberturas adicionais ficam bloqueadas até liberar espaço. Pets comprados podem ser excluídos após confirmação; isso não restaura o produto.
+
+Instant Rebirth elimina a confirmação extra; não elimina o custo nem os resets. Teleport All Worlds dispensa custo e sequência de desbloqueio, mas mantém requisitos de rebirth dos mundos avançados. Extra Pet Slots concede +3; Magnet aumenta alcance de 24 para 55 studs. VIP permite a área AFK de 3x; Premium AFK dobra os ganhos AFK. Auto Mine seleciona um cristal próximo no servidor. Não há auto hatch gratuito ou pago escondido.
+
+## Persistência e compras
+
+Perfil `u:<UserId>` no DataStore configurado. UpdateAsync faz aquisição de sessão com token único e lease de 240 s, renovado a cada autosave de 60 s. Sessões em outro servidor bloqueiam o login até liberação/expiração. Mutações param se a sessão não conseguir salvar por 200 s. Se outro servidor tomou a sessão, o jogador é desconectado. Saída e BindToClose tentam salvar e liberar; serviços Roblox indisponíveis podem perder progresso desde o último save, por isso teste desconexões e shutdown antes de publicar.
+
+Gamepasses são consultados no Marketplace no login e depois de compra; não se confia na flag salva. Recibos de developer products são processados apenas no servidor. Grant e marca de PurchaseId são uma operação de memória sem yield e vão no **mesmo** UpdateAsync do perfil. PurchaseGranted só retorna após persistência confirmada. Em falha, NotProcessedYet deixa o Roblox reenviar; a marca impede grant duplicado. Nunca conceder usando PromptProductPurchaseFinished. Em sessão temporária, recibos não são confirmados.
+
+Histórico de recibos e códigos é mantido para evitar replay. Monitore tamanho dos perfis, uso de DataStore e throttling antes de grande escala; o limite Roblox por entrada exige projeto de migração/arquivamento durável antes que contas com muitas compras atinjam esse limite. Esta versão não limpa recibos antigos de maneira insegura. Não altere o nome do DataStore de produção sem migração.
+
+Rankings usam quatro OrderedDataStores, escrevem após saves e têm cache de leitura de 180 s. Coins e Pets são totais históricos, Gems é saldo atual. Números grandes são codificados como log10 × 1.000.000 para caber em inteiros, com pequena aproximação na exibição; empates por quantização são possíveis. Falha de ranking não deve bloquear o perfil. Não existe reset automático de ranking nesta versão.
+
+Missões usam dias UTC. Eventos são derivados de timestamp UTC: 15 minutos a cada duas horas, alternando Coins, Luck, Gems e Exclusive. Não dependem de timer de um servidor específico. Minerar durante evento também concede Gems; Exclusive tem chance de 0,2% de pet de evento por cristal. Mensagens Mythical/Secret usam MessagingService quando disponível e sempre aparecem no servidor local.
+
+## Desempenho e arte
+
+200 cristais e 10 ilhas ancoradas, sem física por frame; scheduler compartilhado de 0,15 s, cooldown autoritativo. Interface recebe status a cada dois segundos e atualizações após ações. Inventário só é reenviado quando UIDs ou equipamento mudam. Pets são cosméticos locais (até 6) e não criam física; outros jogadores não veem esses seguidores nesta versão. Partículas e luzes têm vida curta e são removidas por Debris. A UI usa Activated, raycast de mouse/toque e atalhos de gamepad, com menu rolável. Verifique telas pequenas e safe areas nos emuladores.
+
+Modelos de cristais, picareta e pets são gerados como geometria básica. Os 74 pets têm identidades e multiplicadores próprios, mas usam o mesmo corpo geométrico com cores por raridade. Upgrades mudam as estatísticas da picareta; o modelo visual básico é compartilhado. O projeto não promete métricas de retenção ou receita: ajuste balanceamento com testes reais, sem ocultar chances e com confirmação oficial de compras.
