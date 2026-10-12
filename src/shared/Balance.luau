@@ -6,7 +6,7 @@ function B.rebirthMultiplier(count)
 	return 1 + count * 0.5
 end
 function B.petSlots(data)
-	return 3 + (data.Passes.ExtraPetSlots and 3 or 0)
+	return 3 + (data.Passes.ExtraPetSlots and 3 or 0) + (data.Upgrades and data.Upgrades.Slots or 0)
 end
 function B.level(crystals)
 	return 1 + math.floor(math.sqrt(crystals / 8))

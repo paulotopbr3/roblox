@@ -4,7 +4,7 @@ local C = require(game.ReplicatedStorage.UniverseMiner.Config)
 local Economy = require(game.ReplicatedStorage.UniverseMiner.Economy)
 local Data = require(script.Parent.Data)
 local Game = require(script.Parent.Game)
-local Commerce = {}
+local Commerce = { Catalog = { Passes = {}, Products = {} } }
 local products = {}
 local passIds = {}
 for key, product in pairs(C.Products) do
@@ -17,6 +17,34 @@ for key, id in pairs(C.Passes) do
 	if id > 0 then
 		assert(not passIds[id], "Gamepass ID duplicado")
 		passIds[id] = key
+	end
+end
+function Commerce.loadCatalog()
+	for key, id in pairs(C.Passes) do
+		local card = { Configured = id > 0, Price = nil, ForSale = nil }
+		Commerce.Catalog.Passes[key] = card
+		if id > 0 then
+			local ok, info = pcall(function()
+				return Marketplace:GetProductInfoAsync(id, Enum.InfoType.GamePass)
+			end)
+			if ok then
+				card.Price = info.PriceInRobux
+				card.ForSale = info.IsForSale
+			end
+		end
+	end
+	for key, p in pairs(C.Products) do
+		local card = { Configured = p.Id > 0, Price = nil, ForSale = nil }
+		Commerce.Catalog.Products[key] = card
+		if p.Id > 0 then
+			local ok, info = pcall(function()
+				return Marketplace:GetProductInfoAsync(p.Id, Enum.InfoType.Product)
+			end)
+			if ok then
+				card.Price = info.PriceInRobux
+				card.ForSale = info.IsForSale
+			end
+		end
 	end
 end
 function Commerce.refresh(player)
@@ -51,7 +79,7 @@ function Commerce.prompt(player, arg)
 	end
 	if arg.Type == "Pass" then
 		local id = C.Passes[arg.Key]
-		if id and id > 0 then
+		if id and id > 0 and not Data.Sessions[player].Data.Passes[arg.Key] then
 			Marketplace:PromptGamePassPurchase(player, id)
 		else
 			Game.notice(player, "Gamepass ainda não configurado.")
@@ -66,6 +94,7 @@ function Commerce.prompt(player, arg)
 	end
 end
 function Commerce.init()
+	task.spawn(Commerce.loadCatalog)
 	Marketplace.PromptGamePassPurchaseFinished:Connect(function(player, _, purchased)
 		if purchased then
 			task.spawn(Commerce.refresh, player)

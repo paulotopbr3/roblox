@@ -19,16 +19,27 @@ end
 local function fresh()
 	return {
 		Version = 1,
+		Upgrades = { Damage = 0, Coins = 0, Backpack = 0, Slots = 0 },
+		Tutorial = 1,
+		WelcomeGranted = false,
+		Hatched = 0,
+		Discoveries = {},
+		DiscoveryClaims = {},
+		Achievements = {},
+		BossWins = 0,
+		Login = { LastDay = -1, Streak = 0 },
+
 		Coins = 0,
 		Gems = 0,
 		Rebirths = 0,
 		Tool = 1,
 		World = 1,
 		Unlocked = { ["1"] = true },
+		VisitedWorlds = { ["1"] = true },
 		Pets = {},
 		Equipped = {},
 		Passes = {},
-		Settings = { Music = true, Effects = true },
+		Settings = { Music = true, Effects = true, ReducedMotion = false },
 		Boosts = { Coins = 0, Luck = 0 },
 		Bag = 0,
 		BagCount = 0,
@@ -72,6 +83,11 @@ local function normalize(raw)
 	d.Tool = math.clamp(math.floor(tonumber(d.Tool) or 1), 1, #C.Tools)
 	d.World = math.clamp(math.floor(tonumber(d.World) or 1), 1, #C.Worlds)
 	d.Unlocked["1"] = true
+	for id, unlocked in pairs(d.Unlocked) do
+		if unlocked then
+			d.VisitedWorlds[id] = true
+		end
+	end
 	local pets = {}
 	for _, pet in ipairs(d.Pets) do
 		if type(pet) == "table" and type(pet.Uid) == "string" and C.Pets[pet.Id] then
@@ -79,6 +95,17 @@ local function normalize(raw)
 		end
 	end
 	d.Pets = pets
+	for key, u in pairs(C.GemUpgrades) do
+		local value = tonumber(d.Upgrades[key]) or 0
+		d.Upgrades[key] = (value == value and value >= 0 and value < math.huge)
+				and math.clamp(math.floor(value), 0, u.Max)
+			or 0
+	end
+	d.Tutorial = math.clamp(math.floor(d.Tutorial), 1, #C.Tutorial + 1)
+	for _, p in ipairs(pets) do
+		p.Tier = math.clamp(math.floor(tonumber(p.Tier) or 0), 0, 2)
+		d.Discoveries[p.Id] = true
+	end
 	d.Passes = {} -- Ownership is verified with Marketplace on each login.
 	return d
 end

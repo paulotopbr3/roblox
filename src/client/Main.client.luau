@@ -2,323 +2,437 @@ local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
 local CAS = game:GetService("ContextActionService")
 local Tween = game:GetService("TweenService")
-local RunService = game:GetService("RunService")
-local Debris = game:GetService("Debris")
+local Run = game:GetService("RunService")
 local GuiService = game:GetService("GuiService")
 local SoundService = game:GetService("SoundService")
+local SocialService = game:GetService("SocialService")
 local player = Players.LocalPlayer
 local shared = game.ReplicatedStorage:WaitForChild("UniverseMiner")
 local C = require(shared.Config)
 local B = require(shared.Balance)
+local P = require(shared.Progression)
+local UI = require(script.Parent.UI)
+local V = require(script.Parent.Visuals)
+local colors = UI.Colors
+local gui = Instance.new("ScreenGui")
+gui.Name = "UniverseMinerUI"
+gui.ResetOnSpawn = false
+gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+gui.Parent = player:WaitForChild("PlayerGui")
 local remotes = shared:WaitForChild("Remotes", 15)
 if not remotes then
-	local diagnostic = Instance.new("ScreenGui")
-	diagnostic.Name = "UniverseStartupError"
-	diagnostic.ResetOnSpawn = false
-	diagnostic.Parent = player:WaitForChild("PlayerGui")
-	local message = Instance.new("TextLabel")
-	message.Size = UDim2.fromScale(0.8, 0.25)
-	message.Position = UDim2.fromScale(0.1, 0.35)
-	message.BackgroundColor3 = Color3.fromRGB(40, 25, 40)
-	message.TextColor3 = Color3.new(1, 1, 1)
-	message.Font = Enum.Font.GothamBold
-	message.TextSize = 22
-	message.TextWrapped = true
-	message.Text =
-		"Universe Miner não iniciou. No Studio, abra View → Output e confira a primeira mensagem vermelha."
-	message.Parent = diagnostic
-	warn("UniverseMiner: server failed to create Remotes within 15 seconds")
+	UI.card(gui, "Não foi possível iniciar", "No Studio, abra View → Output e copie a primeira mensagem vermelha.")
 	return
 end
 local action = remotes:WaitForChild("Action")
 local update = remotes:WaitForChild("Update")
-local state = nil
-local menu = nil
-local selectedPet = nil
-local confirmDelete = nil
-local confirmRebirth = false
-local bg = Color3.fromRGB(21, 23, 45)
-local accent = Color3.fromRGB(96, 82, 244)
-local gold = Color3.fromRGB(255, 205, 65)
-local gui = Instance.new("ScreenGui")
-gui.Name = "UniverseMinerUI"
-gui.ResetOnSpawn = false
-gui.IgnoreGuiInset = false
-gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-gui.Parent = player:WaitForChild("PlayerGui")
-local function corner(p, r)
-	local c = Instance.new("UICorner")
-	c.CornerRadius = UDim.new(0, r or 12)
-	c.Parent = p
-end
-local function frame(parent, size, pos, color)
-	local f = Instance.new("Frame")
-	f.Size = size
-	f.Position = pos
-	f.BackgroundColor3 = color or bg
-	f.BorderSizePixel = 0
-	f.Parent = parent
-	corner(f)
-	return f
-end
-local function text(parent, value, size, pos, fontSize)
-	local t = Instance.new("TextLabel")
-	t.Size = size
-	t.Position = pos or UDim2.new()
-	t.BackgroundTransparency = 1
-	t.Text = value
-	t.TextColor3 = Color3.new(1, 1, 1)
-	t.TextSize = fontSize or 17
-	t.Font = Enum.Font.GothamBold
-	t.TextWrapped = true
-	t.Parent = parent
-	return t
-end
-local function button(parent, title, fn, color)
-	local b = Instance.new("TextButton")
-	b.Name = title
-	b.Text = title
-	b.TextColor3 = Color3.new(1, 1, 1)
-	b.Font = Enum.Font.GothamBold
-	b.TextSize = 16
-	b.TextWrapped = true
-	b.Size = UDim2.new(1, -12, 0, 48)
-	b.BackgroundColor3 = color or accent
-	b.BorderSizePixel = 0
-	b.Selectable = true
-	b.Parent = parent
-	corner(b)
-	b.Activated:Connect(fn)
-	return b
-end
 local function send(key, arg)
 	action:FireServer(key, arg)
 end
-local top = frame(gui, UDim2.new(1, -24, 0, 94), UDim2.fromOffset(12, 8))
-local title = text(top, C.Title, UDim2.new(1, 0, 0, 25), UDim2.fromOffset(0, 3), 19)
-local stats = text(top, "Carregando dados…", UDim2.new(1, -12, 0, 30), UDim2.fromOffset(6, 29), 16)
-local goal = text(top, "", UDim2.new(1, -12, 0, 28), UDim2.fromOffset(6, 60), 14)
-goal.TextColor3 = gold
+local state, menu = nil, nil
+local selectedPet, confirmation = nil, nil
+local petPage = 1
+local collectionWorld = 1
+local storeTab = "Passes"
+local storeFilter = "Todos"
+local codeValue = ""
+local rankData = {}
+local top = UI.frame(gui, UDim2.new(1, -24, 0, 92), UDim2.fromOffset(12, 10))
+UI.text(top, C.Title .. " • " .. C.Release, UDim2.new(1, -110, 0, 20), UDim2.fromOffset(14, 7), 14, colors.Muted)
+local wallet = UI.text(top, "Preparando sua aventura…", UDim2.new(1, -28, 0, 28), UDim2.fromOffset(14, 30), 21)
+local sub = UI.text(top, "", UDim2.new(1, -28, 0, 20), UDim2.fromOffset(14, 63), 13, colors.Cyan)
+local drawer = false
+local compact = false
 local nav = Instance.new("ScrollingFrame")
-nav.Size = UDim2.fromOffset(116, 460)
+nav.Size = UDim2.fromOffset(115, 400)
 nav.Position = UDim2.fromOffset(12, 112)
-nav.BackgroundColor3 = bg
-nav.BorderSizePixel = 0
+nav.BackgroundColor3 = colors.Background
 nav.ScrollBarThickness = 3
+nav.BorderSizePixel = 0
 nav.AutomaticCanvasSize = Enum.AutomaticSize.Y
 nav.CanvasSize = UDim2.new()
 nav.Parent = gui
-corner(nav)
-local navLayout = Instance.new("UIListLayout")
-navLayout.Padding = UDim.new(0, 4)
-navLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-navLayout.Parent = nav
-local panel = frame(gui, UDim2.new(0.68, 0, 0.68, 0), UDim2.new(0.28, 0, 0.19, 0))
+nav.ZIndex = 20
+UI.round(nav)
+UI.list(nav)
+local panel = UI.frame(gui, UDim2.new(1, -156, 1, -124), UDim2.fromOffset(144, 112))
 panel.Visible = false
-local header = text(panel, "", UDim2.new(1, -70, 0, 45), UDim2.fromOffset(12, 4), 22)
-header.TextXAlignment = Enum.TextXAlignment.Left
-local close = button(panel, "×", function()
-	panel.Visible = false
+local heading = UI.text(panel, "", UDim2.new(1, -75, 0, 38), UDim2.fromOffset(16, 7), 23)
+local close = UI.button(panel, "×", function()
 	menu = nil
+	panel.Visible = false
 	GuiService.SelectedObject = nil
 end)
-close.Size = UDim2.fromOffset(44, 38)
-close.Position = UDim2.new(1, -52, 0, 6)
+close.Size = UDim2.fromOffset(40, 36)
+close.Position = UDim2.new(1, -50, 0, 8)
 local list = Instance.new("ScrollingFrame")
 list.Name = "Content"
-list.Position = UDim2.fromOffset(10, 55)
-list.Size = UDim2.new(1, -20, 1, -65)
+list.Position = UDim2.fromOffset(8, 54)
+list.Size = UDim2.new(1, -16, 1, -62)
 list.BackgroundTransparency = 1
 list.BorderSizePixel = 0
-list.ScrollBarThickness = 5
+list.ScrollBarThickness = 4
 list.AutomaticCanvasSize = Enum.AutomaticSize.Y
 list.CanvasSize = UDim2.new()
 list.Parent = panel
-local layout = Instance.new("UIListLayout")
-layout.Padding = UDim.new(0, 8)
-layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-layout.Parent = list
-local controls = frame(gui, UDim2.fromOffset(310, 100), UDim2.new(1, -322, 1, -112))
-local mine
-mine = button(controls, "MINERAR • R2 / clique", function()
-	send("Mine", mine:GetAttribute("Target"))
-end, gold)
-mine.TextColor3 = bg
-mine.Position = UDim2.fromOffset(6, 6)
-local sell = button(controls, "Vender mochila • Y", function()
-	send("Sell")
-end, Color3.fromRGB(40, 156, 95))
-sell.Size = UDim2.new(0.5, -8, 0, 36)
-sell.Position = UDim2.fromOffset(6, 60)
-local auto = button(controls, "Auto Mine", function()
-	send("AutoMine")
+local listLayout = UI.list(list)
+local objective = UI.frame(gui, UDim2.fromOffset(360, 120), UDim2.new(0, 12, 1, -132))
+local objectiveTitle =
+	UI.text(objective, "PRÓXIMO OBJETIVO", UDim2.new(1, -24, 0, 22), UDim2.fromOffset(12, 8), 12, colors.Cyan)
+local objectiveText = UI.text(objective, "Carregando…", UDim2.new(1, -24, 0, 26), UDim2.fromOffset(12, 32), 17)
+local objectiveProgress = UI.bar(objective, 0, colors.Cyan, UDim2.fromOffset(12, 65), UDim2.new(1, -24, 0, 7))
+local render, open
+local objectiveButton = UI.button(objective, "Ver guia", function()
+	open("Guide")
 end)
-auto.Size = UDim2.new(0.5, -8, 0, 36)
-auto.Position = UDim2.new(0.5, 2, 0, 60)
-local toast = text(gui, "", UDim2.new(0.7, 0, 0, 66), UDim2.new(0.15, 0, 0.75, 0), 22)
-toast.ZIndex = 20
+objectiveButton.Size = UDim2.new(1, -24, 0, 29)
+objectiveButton.Position = UDim2.fromOffset(12, 81)
+local controls = UI.frame(gui, UDim2.fromOffset(310, 120), UDim2.new(1, -322, 1, -132))
+local target = nil
+local held = false
+local heldId = nil
+local nextHit = 0
+local mine = UI.button(controls, "MINERAR • segure", function()
+	if target then
+		send("Mine", target:GetAttribute("CrystalId"))
+	end
+end, colors.Cyan)
+mine.TextColor3 = colors.Background
+mine.Size = UDim2.new(1, -16, 0, 44)
+mine.Position = UDim2.fromOffset(8, 8)
+local bag = UI.text(controls, "Mochila 0 / 30", UDim2.new(1, -16, 0, 20), UDim2.fromOffset(8, 57), 12, colors.Muted)
+local bagProgress = UI.bar(controls, 0, colors.Gold, UDim2.fromOffset(8, 80), UDim2.new(1, -16, 0, 5))
+local sell = UI.button(controls, "Vender • Y", function()
+	send("Sell")
+end, colors.Green)
+sell.Size = UDim2.new(0.58, -10, 0, 27)
+sell.Position = UDim2.fromOffset(8, 90)
+local auto = UI.button(controls, "Auto", function()
+	if state and state.Passes.AutoMine then
+		send("AutoMine")
+	else
+		open("Shop")
+	end
+end)
+auto.Size = UDim2.new(0.42, -12, 0, 27)
+auto.Position = UDim2.new(0.58, 2, 0, 90)
+local toggle = UI.button(gui, "MENU", function()
+	drawer = not drawer
+	nav.Visible = drawer
+end)
+toggle.Size = UDim2.fromOffset(70, 26)
+toggle.Position = UDim2.new(1, -84, 0, 15)
+local toast = UI.text(gui, "", UDim2.new(0.7, 0, 0, 76), UDim2.new(0.15, 0, 0.62, 0), 22, colors.Gold)
+toast.TextXAlignment = Enum.TextXAlignment.Center
 toast.TextStrokeTransparency = 0.3
-local toastSerial = 0
-local function notify(value)
-	toastSerial += 1
-	local serial = toastSerial
-	toast.Text = tostring(value)
+toast.ZIndex = 40
+local toastId = 0
+local function notify(message)
+	toastId += 1
+	local id = toastId
+	toast.Text = tostring(message)
 	task.delay(3, function()
-		if toastSerial == serial then
+		if toastId == id then
 			toast.Text = ""
 		end
 	end)
 end
-local function sound(kind)
-	if state and state.Settings.Effects == false then
-		return
-	end
-	local s = Instance.new("Sound")
-	s.SoundId = C.SoundIds[kind] ~= "" and C.SoundIds[kind] or "rbxasset://sounds/electronicpingshort.wav"
-	s.Volume = 0.2
-	s.PlaybackSpeed = kind == "Mine" and 1.6 or kind == "Rebirth" and 0.7 or 1
-	s.Parent = SoundService
-	s:Play()
-	Debris:AddItem(s, 5)
-end
-local function burst(position, count)
-	if state and state.Settings.Effects == false then
-		return
-	end
-	local p = Instance.new("Part")
-	p.Shape = Enum.PartType.Ball
-	p.Size = Vector3.new(0.5, 0.5, 0.5)
-	p.Position = position
-	p.Anchored = true
-	p.CanCollide = false
-	p.CanQuery = false
-	p.Material = Enum.Material.Neon
-	p.Color = gold
-	p.Parent = workspace
-	local light = Instance.new("PointLight")
-	light.Color = gold
-	light.Range = 12
-	light.Brightness = 2
-	light.Parent = p
-	local emitter = Instance.new("ParticleEmitter")
-	emitter.Texture = "rbxasset://textures/particles/sparkles_main.dds"
-	emitter.Rate = 0
-	emitter.Lifetime = NumberRange.new(0.2, 0.4)
-	emitter.Speed = NumberRange.new(4, 9)
-	emitter.SpreadAngle = Vector2.new(180, 180)
-	emitter.Parent = p
-	emitter:Emit(count)
-	Tween:Create(p, TweenInfo.new(0.3), { Size = Vector3.new(4, 4, 4), Transparency = 1 }):Play()
-	Debris:AddItem(p, 0.4)
-end
-local function characterBurst(count)
-	local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-	if root then
-		burst(root.Position, count)
-	end
-end
 local music = Instance.new("Sound")
-music.Name = "UniverseMusic"
-music.Looped = true
+music.SoundId = C.MusicId
 music.Volume = 0.15
+music.Looped = true
 music.Parent = SoundService
-if C.MusicId and C.MusicId ~= "" then
-	music.SoundId = C.MusicId
+if C.MusicId ~= "" then
 	music:Play()
 end
-local function row(value)
-	local t = text(list, value, UDim2.new(1, -12, 0, 62), nil, 15)
-	t.TextXAlignment = Enum.TextXAlignment.Left
-	return t
-end
-local render
-local rankData = {}
-local function open(name)
-	menu = name
+local names = {
+	Guide = "Guia",
+	Tools = "Picaretas",
+	Eggs = "Ovos",
+	Pets = "Pets",
+	Collection = "Coleção",
+	Worlds = "Mundos",
+	Upgrades = "Gems Lab",
+	Rewards = "Presentes",
+	Quests = "Missões",
+	Rebirth = "Rebirth",
+	Shop = "Loja Robux",
+	Events = "Eventos",
+	Settings = "Ajustes",
+	Codes = "Códigos",
+	Inventory = "Mochila",
+}
+open = function(key)
+	if not names[key] then
+		key = "Guide"
+	end
+	menu = key
 	panel.Visible = true
-	confirmDelete = nil
-	confirmRebirth = false
+	confirmation = nil
+	if compact then
+		drawer = false
+		nav.Visible = false
+	end
 	render()
-	if name == "Events" then
+	if key == "Events" then
 		send("Rankings")
 	end
 	if UIS.GamepadEnabled then
 		GuiService.SelectedObject = list:FindFirstChildWhichIsA("TextButton") or close
 	end
 end
-for _, name in ipairs({ "Shop", "Pets", "Inventory", "Worlds", "Rebirth", "Quests", "Codes", "Events", "Settings" }) do
-	local b = button(nav, name, function()
-		if menu == name then
+for _, key in ipairs({
+	"Guide",
+	"Tools",
+	"Eggs",
+	"Pets",
+	"Collection",
+	"Worlds",
+	"Upgrades",
+	"Rewards",
+	"Quests",
+	"Rebirth",
+	"Shop",
+	"Events",
+	"Settings",
+	"Codes",
+}) do
+	local b = UI.button(nav, names[key], function()
+		if menu == key then
 			menu = nil
 			panel.Visible = false
 		else
-			open(name)
+			open(key)
 		end
-	end)
-	b.Size = UDim2.new(1, -10, 0, 46)
+	end, key == "Shop" and colors.Pink or key == "Rewards" and colors.Green or colors.Card)
+	b.Size = UDim2.new(1, -12, 0, 38)
+	b.TextSize = 12
 end
-local codeValue = ""
-render = function()
-	if not state or not menu then
-		return
+local function card(title, desc, label, callback, col)
+	return UI.card(list, title, desc, label, callback, col)
+end
+local function progress(title, current, maximum, reward, callback)
+	local c, b = card(
+		title,
+		B.compact(current) .. " / " .. B.compact(maximum),
+		reward,
+		callback,
+		current >= maximum and colors.Green or colors.Accent
+	)
+	UI.bar(c, current / maximum, colors.Cyan)
+	return b
+end
+local function petInfo(pet)
+	local info = C.Pets[pet.Id]
+	local scale = P.variant(pet.Tier)
+	local variant = pet.Tier == 2 and "Cosmic" or pet.Tier == 1 and "Golden" or "Normal"
+	return info,
+		variant
+			.. " • "
+			.. info.Rarity
+			.. " • +"
+			.. math.floor(info.Coins * scale * 100)
+			.. "% Coins / +"
+			.. math.floor(info.Damage * scale * 100)
+			.. "% dano"
+end
+local function purchaseCard(key, kind)
+	local pass = kind == "Pass"
+	local spec = pass and C.PassDetails[key] or C.Products[key]
+	local metadata = pass and state.Store.Passes[key] or state.Store.Products[key]
+	metadata = metadata or {}
+	local title = pass and C.PassLabels[key] or spec.Label
+	local owned = pass and state.Passes[key]
+	local configured = pass and C.Passes[key] > 0 or not pass and spec.Id > 0
+	local price = metadata.Price and (metadata.Price .. " Robux") or "Ver preço no Roblox"
+	local desc = pass and spec.Description
+		or spec.Kind == "Eggs" and "Créditos para abrir ovos junto ao pedestal. Cada crédito substitui Coins de uma abertura."
+		or spec.Kind == "Pet" and "Entrega direta do pet indicado, uma vez por compra. Não depende de sorte."
+		or spec.Kind == "Gems" and "Quantidade fixa de Gems. Não é multiplicada por passes."
+		or "Boost de tempo real: o relógio continua enquanto você está offline."
+	local _, b = card(
+		title,
+		desc,
+		owned and "✓ Adquirido"
+			or not configured and "Oferta não configurada"
+			or metadata.ForSale == false and "Indisponível"
+			or price .. " • Comprar",
+		function()
+			send("Purchase", { Type = kind, Key = key })
+		end,
+		owned and colors.Green or colors.Pink
+	)
+	b.Name = "Purchase" .. key
+	if owned or not configured or metadata.ForSale == false then
+		UI.disabled(b, b.Text)
 	end
-	if UIS:GetFocusedTextBox() then
+end
+render = function()
+	if not state or not menu or UIS:GetFocusedTextBox() then
 		return
 	end
 	local scroll = list.CanvasPosition
-	local chosen = GuiService.SelectedObject
-	local chosenName = chosen and chosen.Name
-	for _, child in ipairs(list:GetChildren()) do
-		if child ~= layout then
-			child:Destroy()
-		end
-	end
-	header.Text = menu
-	if menu == "Shop" then
-		local nextTool = C.Tools[state.Tool + 1]
-		row(
-			"Atual: "
-				.. C.Tools[state.Tool].Name
-				.. " • Dano "
-				.. B.compact(C.Tools[state.Tool].Damage * state.DamageMultiplier)
-		)
-		if nextTool then
-			button(list, "Comprar " .. nextTool.Name .. " • " .. B.compact(nextTool.Cost) .. " Coins", function()
-				send("Tool")
+	local selected = GuiService.SelectedObject
+	local selectedName = selected and selected.Name
+	UI.clear(list, listLayout)
+	heading.Text = names[menu]
+	local content = state.Content
+	if menu == "Guide" then
+		local goal = C.Tutorial[content.Tutorial]
+		if goal then
+			local b = progress(
+				goal.Title,
+				content.TutorialProgress,
+				goal.Target,
+				"Resgatar +" .. goal.Gems .. " Gems",
+				function()
+					send("Tutorial")
+				end
+			)
+			if content.TutorialProgress < goal.Target then
+				UI.disabled(b, "Em progresso")
+			end
+			UI.button(list, "Ir para " .. names[goal.Menu], function()
+				if goal.Menu == "Guide" then
+					menu = nil
+					panel.Visible = false
+					notify("Siga a seta até um cristal e segure MINERAR.")
+				else
+					open(goal.Menu)
+				end
 			end)
 		else
-			row("Todas as 36 picaretas desbloqueadas!")
+			card("Você conhece o universo!", "Agora explore os mundos, enfrente titãs e complete sua coleção.")
 		end
-		row(
-			"Compras em Robux: preço exibido na confirmação oficial do Roblox. Boosts usam tempo real, inclusive offline."
+		card(
+			"Mine → venda → melhore → explore",
+			"Segure o clique em um cristal. Venda sua mochila, compre picaretas e visite o Gems Lab para upgrades permanentes."
 		)
-		local keys = {}
-		for key in pairs(C.Passes) do
-			table.insert(keys, key)
-		end
-		table.sort(keys)
-		for _, key in ipairs(keys) do
-			if C.Passes[key] > 0 then
-				button(list, (state.Passes[key] and "✓ " or "") .. C.PassLabels[key], function()
-					send("Purchase", { Type = "Pass", Key = key })
+		card(
+			"Titãs cooperativos",
+			"Cada mundo tem um titã com 100x HP. Todos que causarem dano e continuarem conectados recebem Coins proporcionais ao dano e Gems. Retorno a cada 3 min."
+		)
+		card(
+			"Combos de mineração",
+			"Destrua cristais em sequência antes de 8 segundos. Até 20 de combo e +50% Coins. Vender não quebra o combo."
+		)
+		card(
+			"Jogue grátis",
+			"Pet inicial, presentes, missões, coleção, Gems e slots extras podem ser conquistados jogando. Compras são opcionais."
+		)
+		UI.button(list, "Convidar um amigo para explorar", function()
+			local ok, canInvite = pcall(function()
+				return SocialService:CanSendGameInviteAsync(player)
+			end)
+			if ok and canInvite then
+				local shown = pcall(function()
+					SocialService:PromptGameInvite(player)
 				end)
+				if not shown then
+					notify("Não foi possível abrir o convite agora.")
+				end
+			else
+				notify("Convites dependem de uma experiência publicada e de uma conta elegível.")
+			end
+		end, colors.Cyan)
+	elseif menu == "Tools" then
+		local current = C.Tools[state.Tool]
+		card(
+			current.Name,
+			"Equipada • Dano "
+				.. B.compact(current.Damage * state.DamageMultiplier)
+				.. " • intervalo "
+				.. string.format("%.2fs", current.Interval)
+		)
+		local nextTool = C.Tools[state.Tool + 1]
+		if nextTool then
+			progress(
+				nextTool.Name,
+				state.Coins,
+				nextTool.Cost,
+				"Comprar por " .. B.compact(nextTool.Cost) .. " Coins",
+				function()
+					send("Tool")
+				end
+			)
+		else
+			card("Coleção de picaretas completa", "Faça rebirth para continuar aumentando os multiplicadores.")
+		end
+		for i = state.Tool + 2, math.min(#C.Tools, state.Tool + 6) do
+			card(
+				C.Tools[i].Name,
+				"Próxima etapa • "
+					.. B.compact(C.Tools[i].Cost)
+					.. " Coins • dano "
+					.. B.compact(C.Tools[i].Damage)
+			)
+		end
+	elseif menu == "Upgrades" then
+		card(
+			"Upgrades permanentes com Gems",
+			"Mantidos após rebirth. Ganhe Gems em níveis, missões, presentes, coleção e titãs."
+		)
+		for _, key in ipairs({ "Damage", "Coins", "Backpack", "Slots" }) do
+			local u = C.GemUpgrades[key]
+			local level = content.Upgrades[key]
+			local cost = P.upgradeCost(u, level)
+			local _, b = card(
+				u.Name .. " • " .. level .. " / " .. u.Max,
+				u.Description,
+				level >= u.Max and "Máximo" or "Melhorar • " .. B.compact(cost) .. " Gems",
+				function()
+					send("Upgrade", key)
+				end,
+				colors.Cyan
+			)
+			if level >= u.Max then
+				UI.disabled(b, "Nível máximo")
 			end
 		end
-		local productKeys = {}
-		for key in pairs(C.Products) do
-			table.insert(productKeys, key)
+	elseif menu == "Eggs" or menu == "Inventory" then
+		card(
+			C.Worlds[state.World].Name .. " • Ovo",
+			"Aproxime-se do pedestal amarelo. Preço "
+				.. B.compact(C.Worlds[state.World].EggCost)
+				.. " Coins • créditos disponíveis: "
+				.. state.EggCredits
+		)
+		UI.button(list, "Abrir 1 ovo", function()
+			send("Hatch", 1)
+		end, colors.Gold)
+		if state.Passes.TripleHatch then
+			UI.button(list, "Abrir 3 ovos", function()
+				send("Hatch", 3)
+			end)
 		end
-		table.sort(productKeys)
-		for _, key in ipairs(productKeys) do
-			local p = C.Products[key]
-			if p.Id > 0 then
-				button(list, p.Label, function()
-					send("Purchase", { Type = "Product", Key = key })
-				end, Color3.fromRGB(34, 145, 157))
-			end
+		local total = 0
+		for i, w in ipairs(C.Weights) do
+			total += w * (i >= 3 and state.LuckMultiplier or 1)
 		end
+		for rank, name in ipairs(C.Rarities) do
+			local pet = C.Pets["w" .. state.World .. "r" .. rank]
+			card(
+				pet.Name,
+				name
+					.. " • chance atual "
+					.. string.format(
+						"%.4f%%",
+						C.Weights[rank] * (rank >= 3 and state.LuckMultiplier or 1) / total * 100
+					)
+			)
+		end
+		card(
+			"Mochila",
+			"" .. state.BagCount .. " cristais • valor " .. B.compact(state.Bag) .. " Coins",
+			"Vender gratuitamente",
+			function()
+				send("Sell")
+			end,
+			colors.Green
+		)
 	elseif menu == "Pets" then
-		row(
+		card(
+			"Seu esquadrão",
 			#state.Pets
 				.. " / "
 				.. C.MaxPets
@@ -326,210 +440,360 @@ render = function()
 				.. #state.Equipped
 				.. " / "
 				.. B.petSlots(state)
-				.. " equipados"
+				.. " equipados",
+			"Equipar melhores",
+			function()
+				send("EquipBest")
+			end,
+			colors.Cyan
 		)
-		button(list, "Equipar melhores", function()
-			send("EquipBest")
-		end)
-		if selectedPet then
-			button(
-				list,
-				confirmDelete == selectedPet and "CONFIRMAR exclusão permanente"
-					or "Excluir pet selecionado (desequipado)",
-				function()
-					if confirmDelete == selectedPet then
-						send("DeletePet", selectedPet)
-						confirmDelete = nil
-						selectedPet = nil
-					else
-						confirmDelete = selectedPet
-						render()
-					end
-				end,
-				Color3.fromRGB(171, 57, 81)
-			)
+		local found
+		for _, p in ipairs(state.Pets) do
+			if p.Uid == selectedPet then
+				found = p
+				break
+			end
 		end
-		for _, pet in ipairs(state.Pets) do
-			local info = C.Pets[pet.Id]
-			local equipped = table.find(state.Equipped, pet.Uid)
-			local b = button(
-				list,
-				(equipped and "✓ " or "")
-					.. info.Name
-					.. " • "
-					.. info.Rarity
-					.. " | +"
-					.. math.floor(info.Coins * 100)
-					.. "% Coins",
+		if found then
+			local info, desc = petInfo(found)
+			local equipped = table.find(state.Equipped, found.Uid)
+			card(info.Name, desc, equipped and "Desequipar" or "Equipar", function()
+				send("Equip", found.Uid)
+			end)
+			local fusion = P.fusion(state.Pets, state.Equipped, found.Uid)
+			if fusion then
+				UI.button(
+					list,
+					confirmation == "Fuse" and "CONFIRMAR: consumir 3 pets + " .. fusion.Cost .. " Gems"
+						or "Fundir 3 iguais → " .. (fusion.Tier == 1 and "Golden 2,5x" or "Cosmic 6,25x"),
+					function()
+						if confirmation == "Fuse" then
+							send("Fuse", found.Uid)
+							confirmation = nil
+							selectedPet = nil
+						else
+							confirmation = "Fuse"
+							render()
+						end
+					end,
+					colors.Gold
+				)
+			end
+			if not equipped then
+				UI.button(
+					list,
+					confirmation == "Delete" and "CONFIRMAR exclusão permanente" or "Excluir este pet",
+					function()
+						if confirmation == "Delete" then
+							send("DeletePet", found.Uid)
+							selectedPet = nil
+							confirmation = nil
+						else
+							confirmation = "Delete"
+							render()
+						end
+					end,
+					colors.Danger
+				)
+			end
+		end
+		card(
+			"Fusão sem sorte",
+			"Desequipe 3 pets iguais da mesma variante. 3 Normais + 50 Gems → Golden 2,5x; 3 Golden + 250 Gems → Cosmic 6,25x. Os três pets são consumidos."
+		)
+		local pets = table.clone(state.Pets)
+		table.sort(pets, function(a, b)
+			return C.Pets[a.Id].Coins * P.variant(a.Tier) > C.Pets[b.Id].Coins * P.variant(b.Tier)
+		end)
+		local maxPage = math.max(1, math.ceil(#pets / 24))
+		petPage = math.clamp(petPage, 1, maxPage)
+		UI.button(list, "Página " .. petPage .. " / " .. maxPage .. " • Próxima", function()
+			petPage = petPage % maxPage + 1
+			selectedPet = nil
+			render()
+			list.CanvasPosition = Vector2.new()
+		end)
+		for i = (petPage - 1) * 24 + 1, math.min(#pets, petPage * 24) do
+			local pet = pets[i]
+			local info, desc = petInfo(pet)
+			local _, b = card(
+				(table.find(state.Equipped, pet.Uid) and "✓ " or "") .. info.Name,
+				desc,
+				"Selecionar",
 				function()
 					selectedPet = pet.Uid
-					send("Equip", pet.Uid)
+					confirmation = nil
+					render()
+					list.CanvasPosition = Vector2.new()
 				end
 			)
 			b.Name = pet.Uid
 		end
-	elseif menu == "Inventory" then
-		row(
-			"Mochila: "
-				.. (state.BagCount or 0)
-				.. " / "
-				.. (state.Passes.InfiniteBackpack and "∞" or C.BaseBackpack)
-				.. " cristais\nValor: "
-				.. B.compact(state.Bag)
-				.. " Coins • créditos de ovo: "
-				.. state.EggCredits
+	elseif menu == "Collection" then
+		local discovered, total = 0, 0
+		for id in pairs(C.Pets) do
+			total += 1
+			if content.Discoveries[id] then
+				discovered += 1
+			end
+		end
+		card(
+			"Atlas cósmico",
+			discovered .. " / " .. total .. " espécies descobertas. Cada primeira descoberta concede Gems."
 		)
-		button(list, "Vender agora", function()
-			send("Sell")
+		UI.button(list, "" .. C.Worlds[collectionWorld].Name .. " • Próximo mundo", function()
+			collectionWorld = collectionWorld % #C.Worlds + 1
+			render()
 		end)
-		row("Picaretas desbloqueadas: " .. state.Tool .. " / " .. #C.Tools .. " • a melhor está equipada")
-		for key, ends in pairs(state.Boosts) do
-			row(key .. " Boost • " .. math.max(0, ends - os.time()) .. "s restantes")
+		local ids = {}
+		for id, info in pairs(C.Pets) do
+			if info.World == collectionWorld then
+				table.insert(ids, id)
+			end
 		end
-		row(
-			"Ovo do mundo atual: "
-				.. B.compact(C.Worlds[state.World].EggCost)
-				.. " Coins por abertura. Aproxime-se do ovo amarelo."
-		)
-		button(list, "Abrir 1 ovo", function()
-			send("Hatch", 1)
-		end, gold)
-		if state.Passes.TripleHatch then
-			button(list, "Abrir 3 ovos", function()
-				send("Hatch", 3)
-			end)
-		end
-		local luck = (state.Passes.DoubleLuck and 2 or 1)
-			* ((state.Boosts.Luck or 0) > os.time() and 2 or 1)
-			* (state.Event.Active and state.Event.Kind == "Luck" and 2 or 1)
-		local total = 0
-		for i, w in ipairs(C.Weights) do
-			total += w * (i >= 3 and luck or 1)
-		end
-		for i, name in ipairs(C.Rarities) do
-			row(name .. " • " .. string.format("%.4f%%", C.Weights[i] * (i >= 3 and luck or 1) / total * 100))
+		table.sort(ids, function(a, b)
+			return C.Pets[a].Rank < C.Pets[b].Rank
+		end)
+		for _, id in ipairs(ids) do
+			local info = C.Pets[id]
+			local discoveredPet = content.Discoveries[id]
+			local claimed = content.DiscoveryClaims[id]
+			local _, b = card(
+				discoveredPet and info.Name or "??? • " .. info.Rarity,
+				discoveredPet and info.Rarity .. " • descoberta registrada"
+					or (
+						(id == "weekly" and "Fonte: produto Weekly Supernova (Robux)")
+						or (id == "vip" and "Fonte: passe Exclusive Pet (Robux)")
+						or (id == "streak" and "Fonte: 7º presente diário")
+						or (id == "daily" and "Fonte: missão diária de ovos")
+						or (id == "starter" and "Fonte: presente inicial gratuito")
+						or (id == "event" and "Fonte: minerar durante evento Exclusive")
+						or ("Fonte: ovo de " .. C.Worlds[info.World].Name)
+					),
+				claimed and "✓ Resgatado" or "Resgatar " .. (info.Rank * 5) .. " Gems",
+				function()
+					send("Discovery", id)
+				end
+			)
+			if not discoveredPet or claimed then
+				UI.disabled(b, claimed and "✓ Resgatado" or "Ainda não descoberto")
+			end
 		end
 	elseif menu == "Worlds" then
 		for i, w in ipairs(C.Worlds) do
-			button(
-				list,
-				(state.World == i and "▶ " or "")
-					.. w.Name
-					.. " • "
-					.. (state.Unlocked[tostring(i)] and "Viajar" or B.compact(w.Cost) .. " Coins")
-					.. (w.RequiredRebirths > 0 and " • " .. w.RequiredRebirths .. " rebirths" or ""),
+			local unlocked = state.Unlocked[tostring(i)]
+			local _, b = card(
+				(state.World == i and "▶ " or "") .. w.Name,
+				"Minério " .. B.compact(w.Reward) .. " Coins base • " .. w.RequiredRebirths .. " rebirths mínimos",
+				unlocked and "Viajar" or "Desbloquear • " .. B.compact(w.Cost) .. " Coins",
 				function()
 					send("World", i)
 				end,
 				Color3.fromRGB(table.unpack(w.Color))
 			)
-		end
-	elseif menu == "Rebirth" then
-		row(
-			"Rebirths: "
-				.. state.Rebirths
-				.. " • permanente: "
-				.. B.rebirthMultiplier(state.Rebirths)
-				.. "x\nCusto: "
-				.. B.compact(state.RebirthCost)
-				.. " Coins"
-		)
-		row(
-			"Reinicia Coins, mochila, ferramentas e mundos. Mantém Gems, pets, passes, missões e multiplicador permanente. Rebirths 2 e 4 abrem requisitos de Void e Heaven."
-		)
-		button(list, confirmRebirth and "CONFIRMAR REBIRTH" or "Fazer rebirth", function()
-			if confirmRebirth or state.Passes.InstantRebirth then
-				send("Rebirth")
-				confirmRebirth = false
-			else
-				confirmRebirth = true
-				render()
+			if state.Rebirths < w.RequiredRebirths then
+				UI.disabled(b, "Precisa de " .. w.RequiredRebirths .. " rebirths")
 			end
-		end, gold)
+		end
+	elseif menu == "Rewards" then
+		local nextStreak = P.streak(content.Login.LastDay, content.Login.Streak, math.floor(os.time() / 86400))
+		local _, dailyButton = card(
+			"Presente diário • dia " .. (nextStreak or content.Login.Streak) .. " / 7",
+			"25–175 Gems + créditos de ovo. Dia 7: Aurora Guardian. Reset diário às 00:00 UTC.",
+			content.CanLogin and "Resgatar presente gratuito" or "✓ Presente de hoje resgatado",
+			function()
+				send("LoginGift")
+			end,
+			colors.Green
+		)
+		if not content.CanLogin then
+			UI.disabled(dailyButton, dailyButton.Text)
+		end
+		for i, gift in ipairs(C.PlayGifts) do
+			local claimed = content.PlayClaimed[tostring(i)]
+			local b = progress(
+				"Exploração • " .. math.floor(gift.Seconds / 60) .. " min",
+				content.PlaySeconds,
+				gift.Seconds,
+				claimed and "✓ Resgatado" or "Resgatar " .. gift.Gems .. " Gems + " .. gift.Credits .. " ovos",
+				function()
+					send("PlayGift", i)
+				end
+			)
+			if claimed or content.PlaySeconds < gift.Seconds then
+				UI.disabled(b, claimed and "✓ Resgatado" or "Continue explorando")
+			end
+		end
 	elseif menu == "Quests" then
-		row("Missões diárias • reset às 00:00 UTC • recompensas resgatadas manualmente")
+		card(
+			"Missões e conquistas",
+			"Missões diárias resetam às 00:00 UTC. Conquistas são permanentes, uma recompensa por etapa."
+		)
 		for i, q in ipairs(C.Quests) do
-			button(
-				list,
-				q.Key
-					.. ": "
-					.. B.compact(state.Daily[q.Key] or 0)
-					.. " / "
-					.. B.compact(q.Target)
-					.. " • "
-					.. q.Gems
-					.. " Gems + "
-					.. q.Reward
-					.. (state.Daily.Claimed[tostring(i)] and " ✓" or " • Resgatar"),
+			local claimed = state.Daily.Claimed[tostring(i)]
+			local b = progress(
+				"Diária • " .. q.Key,
+				state.Daily[q.Key],
+				q.Target,
+				claimed and "✓ Resgatada" or "+" .. q.Gems .. " Gems + " .. q.Reward,
 				function()
 					send("Quest", i)
 				end
 			)
+			if claimed or state.Daily[q.Key] < q.Target then
+				UI.disabled(b, claimed and "✓ Resgatada" or "Em progresso")
+			end
 		end
-	elseif menu == "Codes" then
-		row("Digite um código. Cada código pode ser usado uma vez por conta.")
-		local input = Instance.new("TextBox")
-		input.Name = "CodeInput"
-		input.Size = UDim2.new(1, -12, 0, 48)
-		input.BackgroundColor3 = Color3.fromRGB(48, 51, 82)
-		input.TextColor3 = Color3.new(1, 1, 1)
-		input.TextSize = 20
-		input.Font = Enum.Font.GothamBold
-		input.PlaceholderText = "Código"
-		input.Text = codeValue
-		input.ClearTextOnFocus = false
-		input.Parent = list
-		corner(input)
-		input:GetPropertyChangedSignal("Text"):Connect(function()
-			codeValue = input.Text
-		end)
-		button(list, "Resgatar", function()
-			input:ReleaseFocus()
-			send("Code", codeValue)
-		end)
+		for i, spec in ipairs(C.Achievements) do
+			local value = spec.Key == "WorldCount" and P.value(state, spec.Key)
+				or spec.Key == "Hatched" and content.Hatched
+				or state[spec.Key]
+			local claimed = content.Achievements[spec.Id]
+			local b = progress(
+				spec.Name,
+				value,
+				spec.Target,
+				claimed and "✓ Resgatada" or "Resgatar " .. spec.Gems .. " Gems",
+				function()
+					send("Achievement", i)
+				end
+			)
+			if claimed or value < spec.Target then
+				UI.disabled(b, claimed and "✓ Resgatada" or "Em progresso")
+			end
+		end
+	elseif menu == "Rebirth" then
+		card(
+			"Renascimento cósmico",
+			state.Rebirths
+				.. " rebirths • permanente "
+				.. B.rebirthMultiplier(state.Rebirths)
+				.. "x • custo "
+				.. B.compact(state.RebirthCost)
+				.. " Coins"
+		)
+		card(
+			"O que você mantém",
+			"Pets, Gems, upgrades do Gems Lab, coleção, conquistas, passes e ajustes. Coins, mochila, picareta e mundos voltam ao início."
+		)
+		progress(
+			"Próximo rebirth",
+			state.Coins,
+			state.RebirthCost,
+			confirmation == "Rebirth" and "CONFIRMAR REBIRTH" or "Fazer rebirth",
+			function()
+				if confirmation == "Rebirth" or state.Passes.InstantRebirth then
+					send("Rebirth")
+					confirmation = nil
+				else
+					confirmation = "Rebirth"
+					render()
+				end
+			end
+		)
+	elseif menu == "Shop" then
+		card(
+			"Loja oficial • compras opcionais",
+			"Passes são permanentes. Produtos podem ser comprados novamente. Preços aqui são referência; confirme o preço final no prompt oficial Roblox."
+		)
+		UI.button(
+			list,
+			storeTab == "Passes" and "PASSES permanentes • Ver produtos" or "PRODUTOS • Ver passes",
+			function()
+				storeTab = storeTab == "Passes" and "Products" or "Passes"
+				render()
+			end,
+			colors.Pink
+		)
+		if storeTab == "Passes" then
+			UI.button(list, "Categoria: " .. storeFilter .. " • Mudar", function()
+				local filters = { "Todos", "Progressão", "Pets", "Conforto" }
+				storeFilter = filters[(table.find(filters, storeFilter) or 1) % #filters + 1]
+				render()
+			end)
+			for _, key in ipairs(C.PassOrder) do
+				if storeFilter == "Todos" or C.PassDetails[key].Category == storeFilter then
+					purchaseCard(key, "Pass")
+				end
+			end
+		else
+			local keys = {}
+			for key in pairs(C.Products) do
+				table.insert(keys, key)
+			end
+			table.sort(keys)
+			for _, key in ipairs(keys) do
+				purchaseCard(key, "Product")
+			end
+		end
 	elseif menu == "Events" then
 		local e = state.Event
-		row(
-			e.Active
-					and (e.Kind == "Exclusive" and "Evento: chance de Event Nebula minerando" or "Evento: 2x " .. e.Kind)
-				or "Sem evento ativo"
+		card(
+			e.Active and "Evento ativo • " .. e.Kind or "Próximo evento",
+			e.Active and "Termina em " .. math.max(0, e.Ends - os.time()) .. "s"
+				or "Começa em " .. math.max(0, e.Next - os.time()) .. "s"
 		)
-		row("Próximo evento em " .. math.max(0, e.Next - os.time()) .. "s • duração 15 min a cada 2 h")
-		row(
-			"Durante eventos: cristais concedem Gems. Rankings globais atualizados periodicamente; Coins e Pets representam totais históricos."
+		card(
+			"Titãs derrotados",
+			tostring(content.BossWins) .. " vitórias. Use os menus de mundo para encontrar novos desafios."
 		)
-		button(list, "Atualizar rankings", function()
+		UI.button(list, "Atualizar rankings globais", function()
 			send("Rankings")
 		end)
 		for _, key in ipairs({ "Coins", "Rebirths", "Pets", "Gems" }) do
-			row("Global " .. key)
-			if not rankData[key] then
-				row("Indisponível ou aguardando DataStore.")
-			else
-				for i, entry in ipairs(rankData[key]) do
-					row(i .. ". " .. entry.Name .. " • " .. B.compact(entry.Value))
-				end
+			card("Global " .. key, (key == "Coins" or key == "Pets") and "Total histórico" or "Classificação global")
+			for i, entry in ipairs(rankData[key] or {}) do
+				card(i .. ". " .. entry.Name, B.compact(entry.Value))
 			end
 		end
+	elseif menu == "Codes" then
+		card(
+			"Códigos de presente",
+			"Experimente WELCOME, UNIVERSE e COSMIC. Cada código pode ser usado uma vez por conta."
+		)
+		local input = Instance.new("TextBox")
+		input.Name = "CodeInput"
+		input.Size = UDim2.new(1, -8, 0, 48)
+		input.Text = codeValue
+		input.PlaceholderText = "DIGITE O CÓDIGO"
+		input.ClearTextOnFocus = false
+		input.TextSize = 20
+		input.TextColor3 = colors.Text
+		input.BackgroundColor3 = colors.Card
+		input.Font = Enum.Font.GothamBold
+		input.Parent = list
+		UI.round(input)
+		input:GetPropertyChangedSignal("Text"):Connect(function()
+			codeValue = input.Text
+		end)
+		UI.button(list, "Resgatar", function()
+			input:ReleaseFocus()
+			send("Code", codeValue)
+		end, colors.Green)
 	elseif menu == "Settings" then
-		for _, key in ipairs({ "Music", "Effects" }) do
-			button(list, key .. ": " .. (state.Settings[key] and "ON" or "OFF"), function()
+		for _, key in ipairs({ "Music", "Effects", "ReducedMotion" }) do
+			UI.button(list, key .. ": " .. (state.Settings[key] and "ON" or "OFF"), function()
 				send("Setting", key)
 			end)
 		end
-		row(
-			"PC: clique num cristal • Controle: R2 minera o cristal próximo, Y vende, X abre ovo, B fecha menu • Toque: toque no cristal ou use MINERAR."
+		card(
+			"Controles",
+			"PC: segure clique / MINERAR • celular: toque / segure MINERAR • controle: R2 minera, Y vende, L2 abre ovo, X interage, B fecha menu • E interage com estações"
 		)
-		row(
-			state.Temporary and "STUDIO: dados temporários. Nada será salvo nesta sessão."
-				or "Salvamento automático ativo; aguarde ao sair."
+		card(
+			"Dados",
+			state.Temporary
+					and "Teste Studio: sessão temporária. Não será salva. Publique uma experiência de teste para validar DataStore."
+				or "Salvamento automático ativo. Não use os dados de produção em testes destrutivos."
 		)
 	end
 	list.CanvasPosition = scroll
-	if chosenName and UIS.GamepadEnabled then
-		local target = list:FindFirstChild(chosenName)
-		if target and target:IsA("GuiButton") then
-			GuiService.SelectedObject = target
+	if selectedName and UIS.GamepadEnabled then
+		local chosen = list:FindFirstChild(selectedName, true)
+		if chosen and chosen:IsA("GuiButton") then
+			GuiService.SelectedObject = chosen
+		else
+			GuiService.SelectedObject = close
 		end
 	end
 end
@@ -539,38 +803,70 @@ local function resize()
 		return
 	end
 	local size = camera.ViewportSize
-	local small = size.X < 760 or size.Y < 600
-	nav.Size = UDim2.fromOffset(small and 88 or 116, math.min(small and 333 or 460, size.Y - 128))
-	for _, b in ipairs(nav:GetChildren()) do
-		if b:IsA("TextButton") then
-			b.Size = UDim2.new(1, -8, 0, small and 33 or 46)
-			b.TextSize = small and 12 or 16
-		end
+	local small = size.X < 760
+	compact = small
+	toggle.Visible = small
+	nav.Visible = not small or drawer
+	nav.Size = UDim2.fromOffset(small and 100 or 115, math.max(90, size.Y - 250))
+	panel.Position = UDim2.fromOffset(small and 12 or 144, 112)
+	panel.Size = UDim2.new(1, small and -24 or -156, 1, -124)
+	objectiveButton.Visible = not small
+	objective.Position = UDim2.new(0, 12, 1, -132)
+	objective.Size = UDim2.fromOffset(small and math.max(160, size.X - 272) or math.min(360, size.X - 450), 120)
+	controls.Size = UDim2.fromOffset(small and 245 or 310, 120)
+	controls.Position = UDim2.new(1, small and -257 or -322, 1, -132)
+	if small then
+		objective.Size = UDim2.new(1, -24, 0, 76)
+		objective.Position = UDim2.fromOffset(12, 112)
+		objectiveButton.Visible = false
+		objectiveTitle.TextSize = 10
+		objectiveText.TextSize = 13
+		objectiveProgress.Parent.Position = UDim2.fromOffset(12, 65)
 	end
-	panel.Position = UDim2.fromOffset(small and 105 or 140, 112)
-	panel.Size = UDim2.new(1, small and -117 or -160, 1, -124)
-	controls.Size = UDim2.fromOffset(small and 245 or 310, 100)
-	controls.Position = UDim2.new(1, small and -257 or -322, 1, -112)
-	stats.TextSize = small and 12 or 16
-	title.TextSize = small and 15 or 19
-	goal.TextSize = small and 11 or 14
+	wallet.TextSize = small and 15 or 21
+	sub.TextSize = small and 11 or 13
 end
 if workspace.CurrentCamera then
 	workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(resize)
 end
 resize()
-local function targetAt(position)
+local highlight = Instance.new("Highlight")
+highlight.Name = "MiningTarget"
+highlight.FillTransparency = 0.9
+highlight.OutlineColor = colors.Cyan
+highlight.DepthMode = Enum.HighlightDepthMode.Occluded
+highlight.Parent = workspace
+local marker = Instance.new("BillboardGui")
+marker.Name = "GuideMarker"
+marker.Size = UDim2.fromOffset(150, 32)
+marker.StudsOffset = Vector3.new(0, 10, 0)
+marker.AlwaysOnTop = true
+marker.MaxDistance = 200
+marker.Parent = gui
+local markerText = UI.text(marker, "↓ SEU OBJETIVO", UDim2.fromScale(1, 1), nil, 15, colors.Gold)
+markerText.TextXAlignment = Enum.TextXAlignment.Center
+markerText.TextStrokeTransparency = 0.3
+local function rayTarget(position)
 	local camera = workspace.CurrentCamera
 	if not camera then
-		return
+		return nil
 	end
 	local ray = camera:ScreenPointToRay(position.X, position.Y)
 	local params = RaycastParams.new()
 	params.FilterType = Enum.RaycastFilterType.Exclude
 	params.FilterDescendantsInstances = player.Character and { player.Character } or {}
 	local hit = workspace:Raycast(ray.Origin, ray.Direction * 500, params)
-	if hit and hit.Instance:GetAttribute("CrystalId") then
-		send("Mine", hit.Instance:GetAttribute("CrystalId"))
+	if hit and hit.Instance:GetAttribute("Alive") then
+		return hit.Instance
+	end
+	return nil
+end
+local function beginHold(p)
+	if p then
+		held = true
+		heldId = p:GetAttribute("CrystalId")
+		send("Mine", heldId)
+		nextHit = os.clock() + 0.13
 	end
 end
 UIS.InputBegan:Connect(function(input, processed)
@@ -578,17 +874,32 @@ UIS.InputBegan:Connect(function(input, processed)
 		return
 	end
 	if input.UserInputType == Enum.UserInputType.MouseButton1 then
-		targetAt(UIS:GetMouseLocation())
+		beginHold(rayTarget(UIS:GetMouseLocation()))
+	end
+end)
+UIS.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		held = false
 	end
 end)
 UIS.TouchTapInWorld:Connect(function(position, processed)
 	if not processed then
-		targetAt(position)
+		local p = rayTarget(position)
+		if p then
+			send("Mine", p:GetAttribute("CrystalId"))
+		end
+	end
+end)
+mine.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		beginHold(target)
 	end
 end)
 CAS:BindAction("UMMine", function(_, phase)
 	if phase == Enum.UserInputState.Begin then
-		send("Mine", mine:GetAttribute("Target"))
+		beginHold(target)
+	elseif phase == Enum.UserInputState.End then
+		held = false
 	end
 	return Enum.ContextActionResult.Sink
 end, false, Enum.KeyCode.ButtonR2)
@@ -603,7 +914,7 @@ CAS:BindAction("UMHatch", function(_, phase)
 		send("Hatch", 1)
 	end
 	return Enum.ContextActionResult.Sink
-end, false, Enum.KeyCode.ButtonX)
+end, false, Enum.KeyCode.ButtonL2)
 CAS:BindAction("UMClose", function(_, phase)
 	if phase == Enum.UserInputState.Begin then
 		panel.Visible = false
@@ -612,67 +923,26 @@ CAS:BindAction("UMClose", function(_, phase)
 	end
 	return Enum.ContextActionResult.Sink
 end, false, Enum.KeyCode.ButtonB)
-local petVisuals = {}
-local petSignature = ""
-local function rebuildPets()
-	local signature = table.concat(state.Equipped, ",")
-	if signature == petSignature then
-		return
-	end
-	petSignature = signature
-	for _, p in ipairs(petVisuals) do
-		p:Destroy()
-	end
-	petVisuals = {}
-	for _, uid in ipairs(state.Equipped) do
-		for _, pet in ipairs(state.Pets) do
-			if pet.Uid == uid then
-				local info = C.Pets[pet.Id]
-				local p = Instance.new("Part")
-				p.Name = info.Name
-				p.Size = Vector3.new(1.8, 1.8, 1.8)
-				p.Anchored = true
-				p.CanCollide = false
-				p.CanQuery = false
-				p.Material = Enum.Material.Neon
-				p.Color = Color3.fromHSV(info.Rank / 8, 0.65, 1)
-				p.Parent = workspace
-				local billboard = Instance.new("BillboardGui")
-				billboard.Size = UDim2.fromOffset(120, 24)
-				billboard.StudsOffset = Vector3.new(0, 1.8, 0)
-				billboard.MaxDistance = 60
-				billboard.Parent = p
-				text(billboard, info.Name, UDim2.fromScale(1, 1), nil, 11)
-				table.insert(petVisuals, p)
-				break
-			end
-		end
-	end
-end
 local nextScan = 0
-RunService.RenderStepped:Connect(function()
+Run.RenderStepped:Connect(function()
+	controls.Visible = not panel.Visible
+	objective.Visible = not panel.Visible
 	local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-	if not root then
+	if not root or not state then
 		return
 	end
-	controls.Visible = not panel.Visible
 	local now = os.clock()
-	for i, p in ipairs(petVisuals) do
-		local angle = i * math.pi * 2 / math.max(1, #petVisuals) + now * 0.5
-		local pos = root.Position + Vector3.new(math.cos(angle) * 4, math.sin(now * 3 + i) * 0.4, math.sin(angle) * 4)
-		p.CFrame = CFrame.new(pos, root.Position)
+	if held and heldId and now >= nextHit and not panel.Visible then
+		nextHit = now + 0.13
+		send("Mine", heldId)
 	end
 	if now < nextScan then
 		return
 	end
-	nextScan = now + 0.25
+	nextScan = now + 0.2
 	local map = workspace:FindFirstChild("UniverseMap")
-	if not map or not state then
-		return
-	end
-	local folder = map:FindFirstChild(C.Worlds[state.World].Name)
-	local nearest = nil
-	local dist = state.Passes.Magnet and 55 or 24
+	local folder = map and map:FindFirstChild(C.Worlds[state.World].Name)
+	local nearest, dist = nil, state.Passes.Magnet and 55 or 24
 	if folder then
 		for _, p in ipairs(folder:GetChildren()) do
 			if p:IsA("BasePart") and p:GetAttribute("Alive") then
@@ -684,9 +954,32 @@ RunService.RenderStepped:Connect(function()
 			end
 		end
 	end
-	mine:SetAttribute("Target", nearest and nearest:GetAttribute("CrystalId") or nil)
-	mine.Text = nearest and ("MINERAR • " .. B.compact(nearest:GetAttribute("Health")) .. " HP")
+	target = nearest
+	highlight.Adornee = nearest
+	mine.Text = nearest
+			and ((nearest:GetAttribute("Boss") and "TITÃ " or "MINERAR ") .. B.compact(nearest:GetAttribute("Health")) .. " HP • segure")
 		or "Aproxime-se de um cristal"
+	local step = state.Content.Tutorial
+	local goalTarget = step == 1 and nearest
+		or step == 2 and folder and folder:FindFirstChild("Sell")
+		or step == 3 and folder and folder:FindFirstChild("PICARETASBase")
+		or step == 4 and folder and folder:FindFirstChild("Egg")
+		or step == 5 and folder and folder:FindFirstChild("Portal")
+		or nil
+	marker.Adornee = goalTarget
+	marker.Enabled = goalTarget ~= nil
+	if heldId and folder then
+		local alive = false
+		for _, p in ipairs(folder:GetChildren()) do
+			if p:IsA("BasePart") and p:GetAttribute("CrystalId") == heldId then
+				alive = p:GetAttribute("Alive")
+				break
+			end
+		end
+		if not alive then
+			held = false
+		end
+	end
 end)
 local hatchQueue = {}
 local hatching = false
@@ -698,29 +991,64 @@ local function hatch(results)
 	hatching = true
 	task.spawn(function()
 		while #hatchQueue > 0 do
-			local pets = table.remove(hatchQueue, 1)
-			local overlay = frame(gui, UDim2.fromScale(0.65, 0.4), UDim2.fromScale(0.2, 0.28), accent)
-			overlay.ZIndex = 30
-			local t = text(overlay, "✦ ABRINDO OVO ✦", UDim2.fromScale(1, 1), nil, 28)
-			t.ZIndex = 31
-			for _ = 1, 3 do
-				overlay.Rotation = -5
-				Tween:Create(overlay, TweenInfo.new(0.18), { Rotation = 5 }):Play()
-				task.wait(0.18)
-			end
-			overlay.Rotation = 0
+			local batch = table.remove(hatchQueue, 1)
+			local overlay = UI.frame(gui, UDim2.fromScale(0.78, 0.58), UDim2.fromScale(0.11, 0.2), colors.Background)
+			overlay.ZIndex = 60
+			local headline = UI.text(
+				overlay,
+				"UMA NOVA COMPANHIA…",
+				UDim2.new(1, -24, 0, 50),
+				UDim2.fromOffset(12, 6),
+				22,
+				colors.Gold
+			)
+			headline.ZIndex = 61
+			headline.TextXAlignment = Enum.TextXAlignment.Center
+			local viewport = Instance.new("ViewportFrame")
+			viewport.Size = UDim2.new(1, -20, 0.65, 0)
+			viewport.Position = UDim2.fromOffset(10, 52)
+			viewport.BackgroundTransparency = 1
+			viewport.Ambient = Color3.new(1, 1, 1)
+			viewport.LightColor = Color3.new(1, 1, 1)
+			viewport.ZIndex = 61
+			viewport.Parent = overlay
+			local camera = Instance.new("Camera")
+			camera.CFrame = CFrame.new(Vector3.new(0, 1, -8), Vector3.new(0, 0.3, 0))
+			camera.Parent = viewport
+			viewport.CurrentCamera = camera
+			local world = Instance.new("WorldModel")
+			world.Parent = viewport
+			local models = {}
 			local lines = {}
-			for _, p in ipairs(pets) do
-				local info = C.Pets[p.Id]
-				table.insert(lines, info.Name .. " • " .. info.Rarity)
+			for i, pet in ipairs(batch) do
+				local info = C.Pets[pet.Id]
+				local model = V.petModel(info, pet.Tier or 0, world)
+				model.CFrame = CFrame.new((i - (#batch + 1) / 2) * 3, 0, 0)
+				table.insert(models, model)
+				local _, desc = petInfo(pet)
+				table.insert(lines, info.Name .. " • " .. desc)
 				if info.Rank >= 5 then
-					overlay.BackgroundColor3 = gold
-					characterBurst(30)
+					V.celebrate(35)
 				end
 			end
-			t.Text = table.concat(lines, "\n")
-			sound("Hatch")
-			task.wait(1.4)
+			if not state.Settings.ReducedMotion then
+				overlay.Rotation = -3
+				Tween:Create(overlay, TweenInfo.new(0.35, Enum.EasingStyle.Back), { Rotation = 0 }):Play()
+			end
+			task.wait(state.Passes.FastHatch and 0.25 or 0.6)
+			headline.Text = "PET DESCOBERTO!"
+			V.sound("Hatch")
+			local caption = UI.text(
+				overlay,
+				table.concat(lines, "\n"),
+				UDim2.new(1, -24, 0.2, 0),
+				UDim2.new(0, 12, 0.76, 0),
+				#batch > 1 and 12 or 17,
+				colors.Text
+			)
+			caption.ZIndex = 61
+			caption.TextXAlignment = Enum.TextXAlignment.Center
+			task.wait(state.Passes.FastHatch and 0.6 or 1.4)
 			overlay:Destroy()
 		end
 		hatching = false
@@ -728,52 +1056,73 @@ local function hatch(results)
 end
 update.OnClientEvent:Connect(function(kind, payload)
 	if kind == "State" then
+		if not state and (not payload.Pets or not payload.Equipped) then
+			send("Sync")
+			return
+		end
 		if state then
 			payload.Pets = payload.Pets or state.Pets
 			payload.Equipped = payload.Equipped or state.Equipped
 		end
 		state = payload
-		stats.Text = "Coins "
+		V.update(state)
+		wallet.Text = "♦ "
 			.. B.compact(state.Coins)
-			.. "   •   Gems "
+			.. " Coins    ◆ "
 			.. B.compact(state.Gems)
-			.. "   •   Rebirths "
+			.. " Gems    ↻ "
 			.. state.Rebirths
-			.. "   •   Lv "
-			.. state.Level
-		local nextTool = C.Tools[state.Tool + 1]
-		goal.Text = (state.Temporary and "⚠ STUDIO TEMPORÁRIO • " or "")
+		sub.Text = (state.Temporary and "STUDIO • sessão temporária | " or "")
 			.. C.Worlds[state.World].Name
+			.. " • Lv "
+			.. state.Level
 			.. " • "
 			.. string.format("%.1fx Coins", state.CoinMultiplier)
-			.. " • "
 			.. (
-				nextTool and "Meta: " .. nextTool.Name .. " • " .. B.compact(nextTool.Cost)
-				or "Meta: próximo rebirth"
+				state.Content.Combo > 1
+					and " • COMBO " .. state.Content.Combo .. " +" .. math.floor(
+						(P.combo(state.Content.Combo) - 1) * 100
+					) .. "%"
+				or ""
 			)
-		auto.Text = state.AutoMine and "Auto: ON" or "Auto Mine"
+		local goal = C.Tutorial[state.Content.Tutorial]
+		local nextTool = C.Tools[state.Tool + 1]
+		objectiveTitle.Text = goal and "GUIA • " .. state.Content.Tutorial .. " / " .. #C.Tutorial
+			or "SUA PRÓXIMA CONQUISTA"
+		objectiveText.Text = goal and goal.Title or nextTool and nextTool.Name or "Rebirth e novos mundos"
+		local current = goal and state.Content.TutorialProgress or state.Coins
+		local max = goal and goal.Target or nextTool and nextTool.Cost or state.RebirthCost
+		objectiveProgress.Size = UDim2.fromScale(math.clamp(current / max, 0, 1), 1)
+		objectiveButton.Text = goal and current >= max and "Resgatar recompensa" or "Ver objetivo"
+		bag.Text = state.BagCount
+			.. " / "
+			.. (state.Passes.InfiniteBackpack and "∞" or state.Content.Capacity)
+			.. " • "
+			.. B.compact(state.Bag)
+			.. " Coins para vender"
+		bagProgress.Size = UDim2.fromScale(
+			state.Passes.InfiniteBackpack and 0.25 or math.clamp(state.BagCount / state.Content.Capacity, 0, 1),
+			1
+		)
+		auto.Text = state.AutoMine and "Auto: ON" or "Auto"
 		music.Volume = state.Settings.Music and 0.15 or 0
-		rebuildPets()
 		if panel.Visible then
 			render()
 		end
 	elseif kind == "Notice" or kind == "Global" then
 		notify(payload)
+	elseif kind == "Open" then
+		open(payload)
 	elseif kind == "Reward" then
-		notify(payload.Text or "+Coins")
-		sound("Reward")
+		notify(payload.Text)
+		V.sound("Reward")
+	elseif kind == "MineFX" then
+		V.sound("Mine")
+		V.burst(payload.Position, payload.Destroyed and 12 or 3, colors.Cyan)
 	elseif kind == "Celebration" then
 		notify(payload.Text)
-		sound(payload.Kind)
-		characterBurst(payload.Kind == "Rebirth" and 50 or 24)
-		if state and state.Settings.Effects == false then
-			return
-		end
-		local flash = frame(gui, UDim2.fromScale(1, 1), UDim2.new(), gold)
-		flash.BackgroundTransparency = 0.7
-		flash.ZIndex = 25
-		Tween:Create(flash, TweenInfo.new(0.7), { BackgroundTransparency = 1 }):Play()
-		Debris:AddItem(flash, 0.8)
+		V.sound(payload.Kind)
+		V.celebrate(payload.Kind == "Rebirth" and 45 or 20)
 	elseif kind == "Hatch" then
 		hatch(payload)
 	elseif kind == "Rankings" then
@@ -781,12 +1130,6 @@ update.OnClientEvent:Connect(function(kind, payload)
 		if menu == "Events" then
 			render()
 		end
-	elseif kind == "MineFX" then
-		sound("Mine")
-		if state and state.Settings.Effects == false then
-			return
-		end
-		burst(payload.Position, payload.Destroyed and 14 or 4)
 	end
 end)
 send("Sync")

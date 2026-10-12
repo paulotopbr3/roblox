@@ -1,5 +1,9 @@
 local C = {}
 C.Title = "Universe Miner Simulator"
+C.Release = "Cosmic Horizons"
+C.BossRespawn = 180
+C.ComboWindow = 8
+C.ComboMax = 20
 C.DataStore = "UniverseMiner_v1"
 C.StudioTemporaryData = true
 C.MaxNumber = 1e150
@@ -12,7 +16,22 @@ C.EventDuration = 900
 C.MusicId = "" -- áudio autorizado opcional
 C.SoundIds = { Mine = "", Reward = "", Hatch = "", Rebirth = "", Level = "" } -- IDs de áudio autorizado
 C.Worlds = {}
-local names = { "Starter", "Forest", "Desert", "Ocean", "Candy", "Volcano", "Space", "Galaxy", "Void", "Heaven" }
+local names = {
+	"Starter",
+	"Forest",
+	"Desert",
+	"Ocean",
+	"Candy",
+	"Volcano",
+	"Space",
+	"Galaxy",
+	"Void",
+	"Heaven",
+	"Cyber",
+	"Frost",
+	"Clockwork",
+	"Dream",
+}
 local colors = {
 	{ 94, 195, 115 },
 	{ 40, 139, 73 },
@@ -24,6 +43,10 @@ local colors = {
 	{ 127, 74, 213 },
 	{ 53, 32, 83 },
 	{ 232, 215, 157 },
+	{ 30, 215, 196 },
+	{ 132, 213, 255 },
+	{ 201, 144, 73 },
+	{ 218, 151, 248 },
 }
 for i, name in ipairs(names) do
 	C.Worlds[i] = {
@@ -37,8 +60,23 @@ for i, name in ipairs(names) do
 	}
 end
 C.Tools = {}
-local tiers = { "Wood", "Stone", "Iron", "Gold", "Diamond", "Emerald", "Galaxy", "Void", "God" }
-for i = 1, 36 do
+local tiers = {
+	"Wood",
+	"Stone",
+	"Iron",
+	"Gold",
+	"Diamond",
+	"Emerald",
+	"Galaxy",
+	"Void",
+	"God",
+	"Solar",
+	"Titan",
+	"Chronos",
+	"Nova",
+	"Infinity",
+}
+for i = 1, 56 do
 	C.Tools[i] = {
 		Name = tiers[math.ceil(i / 4)] .. " Pickaxe " .. ((i - 1) % 4 + 1),
 		Cost = i == 1 and 0 or math.floor(70 * 1.9 ^ (i - 2)),
@@ -51,7 +89,7 @@ C.Rarities = { "Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythical", "S
 C.Weights = { 6000, 2500, 1000, 400, 85, 14, 1 }
 C.Pets = {}
 local species = { "Sprite", "Fox", "Golem", "Dragon", "Phoenix", "Titan", "Oracle" }
-for world = 1, 10 do
+for world = 1, #C.Worlds do
 	for rarity, label in ipairs(C.Rarities) do
 		local id = "w" .. world .. "r" .. rarity
 		C.Pets[id] = {
@@ -70,6 +108,10 @@ C.Pets.event = { Name = "Event Nebula", Rarity = "Mythical", Rank = 6, World = 7
 C.Pets.weekly =
 	{ Name = "Weekly Supernova", Rarity = "Mythical", Rank = 6, World = 8, Coins = 4, Damage = 4, Gems = 0.5 }
 C.Pets.vip = { Name = "Royal Star", Rarity = "Legendary", Rank = 5, World = 6, Coins = 2, Damage = 2, Gems = 0.3 }
+C.Pets.starter =
+	{ Name = "Orbit Buddy", Rarity = "Uncommon", Rank = 2, World = 1, Coins = 0.12, Damage = 0.15, Gems = 0.04 }
+C.Pets.streak =
+	{ Name = "Aurora Guardian", Rarity = "Mythical", Rank = 6, World = 12, Coins = 3.5, Damage = 4, Gems = 0.4 }
 -- IDs zero desativam compras. Use IDs únicos da mesma experiência.
 C.Passes = {}
 for _, name in ipairs({
@@ -108,6 +150,100 @@ C.PassLabels = {
 	InstantRebirth = "Rebirth sem confirmação",
 	PremiumAFK = "Premium AFK Rewards",
 }
+C.PassOrder = {
+	"DoubleCoins",
+	"AutoMine",
+	"AutoSell",
+	"VIP",
+	"ExtraPetSlots",
+	"TripleHatch",
+	"DoubleLuck",
+	"DoubleGems",
+	"FastHatch",
+	"Magnet",
+	"InfiniteBackpack",
+	"TeleportAllWorlds",
+	"ExclusivePets",
+	"InstantRebirth",
+	"PremiumAFK",
+}
+C.PassDetails = {
+	DoubleCoins = { Category = "Progressão", Description = "Dobra Coins ganhas minerando e em AFK. Permanente." },
+	DoubleLuck = {
+		Category = "Pets",
+		Description = "Dobra os pesos de Rare ou superior. As chances atualizadas aparecem nos ovos.",
+	},
+	DoubleGems = {
+		Category = "Progressão",
+		Description = "Dobra Gems ganhas no jogo. Gems compradas têm quantidade fixa.",
+	},
+	AutoMine = { Category = "Conforto", Description = "Minera cristais próximos automaticamente; pode ser desligado." },
+	AutoSell = {
+		Category = "Conforto",
+		Description = "Vende sua mochila automaticamente. Vender manualmente é gratuito.",
+	},
+	InfiniteBackpack = { Category = "Conforto", Description = "Remove o limite de cristais da mochila." },
+	VIP = { Category = "Conforto", Description = "Libera o lounge VIP AFK com recompensas 3x." },
+	FastHatch = { Category = "Pets", Description = "Reduz a espera entre ovos de 3 segundos para 1 segundo." },
+	TripleHatch = { Category = "Pets", Description = "Abre 3 ovos por ação, pagando o custo de cada ovo." },
+	TeleportAllWorlds = {
+		Category = "Progressão",
+		Description = "Dispensa custo e sequência dos mundos. Requisitos de rebirth permanecem.",
+	},
+	ExtraPetSlots = { Category = "Pets", Description = "Mais 3 pets equipados, além dos slots conquistados com Gems." },
+	Magnet = { Category = "Conforto", Description = "Aumenta o alcance de mineração de 24 para 55 studs." },
+	ExclusivePets = {
+		Category = "Pets",
+		Description = "Entrega Royal Star uma vez. O pet pode ser excluído permanentemente.",
+	},
+	InstantRebirth = {
+		Category = "Conforto",
+		Description = "Pula a confirmação do rebirth. Custo e resets continuam iguais.",
+	},
+	PremiumAFK = { Category = "Conforto", Description = "Dobra recompensas nas áreas AFK, inclusive no lounge VIP." },
+}
+C.GemUpgrades = {
+	Damage = { Name = "Força cósmica", Description = "+10% dano por nível", Max = 20, Base = 30, Growth = 1.45 },
+	Coins = { Name = "Fortuna estelar", Description = "+8% Coins por nível", Max = 20, Base = 40, Growth = 1.45 },
+	Backpack = {
+		Name = "Mochila expandida",
+		Description = "+15 espaços por nível",
+		Max = 10,
+		Base = 25,
+		Growth = 1.5,
+	},
+	Slots = { Name = "Companhia orbital", Description = "+1 slot de pet por nível", Max = 3, Base = 300, Growth = 3 },
+}
+C.Tutorial = {
+	{ Title = "Quebre 5 cristais", Key = "Crystals", Target = 5, Menu = "Guide", Gems = 15 },
+	{ Title = "Venda sua primeira mochila", Key = "TotalCoins", Target = 75, Menu = "Inventory", Gems = 25 },
+	{ Title = "Compre uma picareta melhor", Key = "Tool", Target = 2, Menu = "Tools", Gems = 40 },
+	{ Title = "Abra seu primeiro ovo", Key = "Hatched", Target = 1, Menu = "Inventory", Gems = 60 },
+	{ Title = "Explore Forest World", Key = "WorldCount", Target = 2, Menu = "Worlds", Gems = 100 },
+}
+C.Achievements = {}
+for _, group in ipairs({
+	{ Key = "Crystals", Name = "Explorador da mina", Targets = { 50, 250, 1000, 5000 } },
+	{ Key = "Hatched", Name = "Colecionador", Targets = { 10, 50, 200, 1000 } },
+	{ Key = "Rebirths", Name = "Nova vida", Targets = { 1, 5, 25, 100 } },
+	{ Key = "WorldCount", Name = "Viajante", Targets = { 3, 6, 10, 14 } },
+}) do
+	for tier, target in ipairs(group.Targets) do
+		table.insert(C.Achievements, {
+			Id = group.Key .. tier,
+			Name = group.Name .. " " .. tier,
+			Key = group.Key,
+			Target = target,
+			Gems = 50 * tier * tier,
+		})
+	end
+end
+C.PlayGifts = {
+	{ Seconds = 120, Gems = 15, Credits = 0 },
+	{ Seconds = 300, Gems = 30, Credits = 1 },
+	{ Seconds = 600, Gems = 60, Credits = 2 },
+	{ Seconds = 1200, Gems = 120, Credits = 3 },
+}
 C.Products = {
 	Gems50 = { Id = 0, Kind = "Gems", Amount = 50, Label = "50 Gems" },
 	Gems500 = { Id = 0, Kind = "Gems", Amount = 500, Label = "500 Gems" },
@@ -126,4 +262,5 @@ C.Quests = {
 	{ Key = "Eggs", Target = 15, Gems = 150, Reward = "daily" },
 }
 C.Codes = { WELCOME = { Gems = 100 }, UNIVERSE = { Gems = 250 } }
+C.Codes.COSMIC = { Gems = 300 }
 return C

@@ -15,7 +15,20 @@ action.Parent = remotes
 local updates = Instance.new("RemoteEvent")
 updates.Name = "Update"
 updates.Parent = remotes
+Game.Store = function()
+	return Commerce.Catalog
+end
 Game.init(updates)
+Map.Interact = function(player, key, arg)
+	if not Data.writable(player) or not Game.rate(player) then
+		return
+	end
+	if key == "Menu" then
+		Game.emit(player, "Open", arg)
+	else
+		Game.action(player, key, arg)
+	end
+end
 Map.build()
 Commerce.init()
 Game.subscribe()
@@ -128,6 +141,11 @@ task.spawn(function()
 		task.wait(2)
 		for player, s in pairs(Data.Sessions) do
 			if not s.Closing then
+				local head = player.Character and player.Character:FindFirstChild("PickaxeHead")
+				if head then
+					head.Color = Color3.fromHSV((s.Data.Tool / #C.Tools) * 0.8, 0.7, 1)
+					head.Material = s.Data.Tool > 12 and Enum.Material.Neon or Enum.Material.Metal
+				end
 				Game.snapshot(player)
 				local stats = player:FindFirstChild("leaderstats")
 				if stats then

@@ -1,1 +1,33 @@
-{"name":"Universe Miner Simulator","tree":{"$className":"DataModel","ReplicatedStorage":{"UniverseMiner":{"$path":"src/shared"}},"ServerScriptService":{"UniverseMiner":{"$path":"src/server"}},"StarterPlayer":{"StarterPlayerScripts":{"UniverseMiner":{"$path":"src/client"}}},"Lighting":{"$properties":{"ClockTime":14,"Brightness":2,"GlobalShadows":true}}}}
+{
+  "name": "Universe Miner Simulator",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "UniverseMiner": {
+        "$path": "src/shared"
+      }
+    },
+    "ServerScriptService": {
+      "UniverseMiner": {
+        "$path": "src/server"
+      }
+    },
+    "StarterPlayer": {
+      "StarterPlayerScripts": {
+        "UniverseMiner": {
+          "$path": "src/client"
+        }
+      }
+    },
+    "Lighting": {
+      "$properties": {
+        "ClockTime": 14,
+        "Brightness": 2,
+        "GlobalShadows": true
+      }
+    },
+    "Workspace": {
+      "$className": "Workspace"
+    }
+  }
+}

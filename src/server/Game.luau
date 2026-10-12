@@ -2,6 +2,8 @@ local Http = game:GetService("HttpService")
 local Messaging = game:GetService("MessagingService")
 local C = require(game.ReplicatedStorage.UniverseMiner.Config)
 local B = require(game.ReplicatedStorage.UniverseMiner.Balance)
+local P = require(game.ReplicatedStorage.UniverseMiner.Progression)
+local Content = require(script.Parent.Content)
 local Economy = require(game.ReplicatedStorage.UniverseMiner.Economy)
 local Data = require(script.Parent.Data)
 local Map = require(script.Parent.Map)
@@ -10,6 +12,7 @@ local rng = Random.new()
 local outbound
 function Game.init(remote)
 	outbound = remote
+	Content.init(Game)
 end
 function Game.emit(player, kind, payload)
 	outbound:FireClient(player, kind, payload)
@@ -43,7 +46,7 @@ function Game.mult(d, kind)
 	for _, uid in ipairs(d.Equipped) do
 		for _, pet in ipairs(d.Pets) do
 			if pet.Uid == uid then
-				value += C.Pets[pet.Id][kind] or 0
+				value += (C.Pets[pet.Id][kind] or 0) * P.variant(pet.Tier)
 				break
 			end
 		end
@@ -51,8 +54,11 @@ function Game.mult(d, kind)
 	if kind == "Coins" or kind == "Damage" then
 		value *= B.rebirthMultiplier(d.Rebirths)
 	end
+	if kind == "Damage" then
+		value *= 1 + (d.Upgrades.Damage or 0) * 0.1
+	end
 	if kind == "Coins" then
-		value *= C.Tools[d.Tool].Coins
+		value *= C.Tools[d.Tool].Coins * (1 + (d.Upgrades.Coins or 0) * 0.08)
 	end
 	if d.Passes["Double" .. kind] then
 		value *= 2
@@ -66,7 +72,7 @@ function Game.mult(d, kind)
 	end
 	return value
 end
-function Game.snapshot(player)
+function Game.snapshot(player, forceInventory)
 	local s = Data.Sessions[player]
 	if not s then
 		return
@@ -81,6 +87,7 @@ function Game.snapshot(player)
 		"Tool",
 		"World",
 		"Unlocked",
+		"VisitedWorlds",
 		"Pets",
 		"Equipped",
 		"Passes",
@@ -98,16 +105,19 @@ function Game.snapshot(player)
 	end
 	local ids = {}
 	for _, pet in ipairs(d.Pets) do
-		table.insert(ids, pet.Uid)
+		table.insert(ids, pet.Uid .. ":" .. (pet.Tier or 0))
 	end
 	local signature = table.concat(ids, ",") .. "|" .. table.concat(d.Equipped, ",")
 	local rt = Game.Runtime[player]
-	if rt and rt.InventorySignature == signature then
+	if rt and rt.InventorySignature == signature and not forceInventory then
 		view.Pets = nil
 		view.Equipped = nil
 	elseif rt then
 		rt.InventorySignature = signature
 	end
+	view.Store = Game.Store and Game.Store() or { Passes = {}, Products = {} }
+	view.Content = Content.view(player)
+	view.LuckMultiplier = Game.mult(d, "Luck")
 	view.Temporary = s.Temporary
 	view.Event = Game.event()
 	view.CoinMultiplier = Game.mult(d, "Coins")
@@ -131,6 +141,7 @@ function Game.pet(d, id)
 	local pet = { Uid = Http:GenerateGUID(false), Id = id }
 	table.insert(d.Pets, pet)
 	d.TotalPets += 1
+	d.Discoveries[id] = true
 	if #d.Equipped < B.petSlots(d) then
 		table.insert(d.Equipped, pet.Uid)
 	end
@@ -167,7 +178,7 @@ function Game.mine(player, id)
 	if now - rt.LastHit < tool.Interval then
 		return
 	end
-	if (d.BagCount or 0) >= C.BaseBackpack and not d.Passes.InfiniteBackpack then
+	if not c.Boss and (d.BagCount or 0) >= P.capacity(d, C.BaseBackpack) and not d.Passes.InfiniteBackpack then
 		if d.Passes.AutoSell then
 			Game.sell(player)
 		else
@@ -179,14 +190,44 @@ function Game.mine(player, id)
 		end
 	end
 	rt.LastHit = now
-	local destroyed = Map.hit(c, tool.Damage * Game.mult(d, "Damage"))
+	local damage = tool.Damage * Game.mult(d, "Damage")
+	if c.Boss then
+		c.Contributors = c.Contributors or {}
+		c.Contributors[player] = (c.Contributors[player] or 0) + math.min(c.Health, damage)
+	end
+	local destroyed = Map.hit(c, damage)
 	Game.emit(player, "MineFX", { Position = c.Part.Position, Destroyed = destroyed })
 	if destroyed then
+		if c.Boss then
+			for contributor, total in pairs(c.Contributors or {}) do
+				if Data.writable(contributor) and total > 0 then
+					local profile = Data.Sessions[contributor].Data
+					local share = math.clamp(total / c.MaxHealth, 0, 1)
+					local coins = math.floor(C.Worlds[c.World].Reward * 100 * share * Game.mult(profile, "Coins"))
+					Game.coins(profile, coins)
+					Game.gems(profile, math.max(5, math.floor(100 * share)), true)
+					profile.BossWins += 1
+					Game.emit(
+						contributor,
+						"Celebration",
+						{ Kind = "Rebirth", Text = "Titã derrotado! +" .. B.compact(coins) .. " Coins + Gems" }
+					)
+					Game.snapshot(contributor)
+				end
+			end
+			return
+		end
+		if now > (rt.ComboEnds or 0) then
+			rt.Combo = 0
+		end
+		rt.Combo = math.min(C.ComboMax, (rt.Combo or 0) + 1)
+		rt.ComboEnds = now + C.ComboWindow
 		local level = B.level(d.Crystals)
 		d.Crystals += 1
 		Game.daily(d)
 		d.Daily.Crystals += 1
-		local reward = math.floor(C.Worlds[c.World].Reward * (c.Rare and 8 or 1) * Game.mult(d, "Coins"))
+		local reward =
+			math.floor(C.Worlds[c.World].Reward * (c.Rare and 8 or 1) * Game.mult(d, "Coins") * P.combo(rt.Combo))
 		d.Bag = clamp(d.Bag + reward)
 		d.BagCount = (d.BagCount or 0) + 1
 		Game.emit(player, "Reward", { Coins = reward, Text = "+" .. B.compact(reward) .. " na mochila" })
@@ -259,7 +300,9 @@ function Game.hatch(player, count)
 	end
 	Game.daily(d)
 	d.Daily.Eggs += count
+	d.Hatched += count
 	Game.emit(player, "Hatch", results)
+	return nil
 end
 function Game.rebirth(player)
 	local d = Data.Sessions[player].Data
@@ -281,6 +324,7 @@ function Game.rebirth(player)
 		"Celebration",
 		{ Kind = "Rebirth", Text = "REBIRTH! Multiplicador permanente " .. B.rebirthMultiplier(d.Rebirths) .. "x" }
 	)
+	return nil
 end
 function Game.action(player, action, arg)
 	if not Data.writable(player) then
@@ -295,7 +339,7 @@ function Game.action(player, action, arg)
 		return
 	end
 	if action == "Sync" then
-		Game.snapshot(player)
+		Game.snapshot(player, true)
 		return
 	end
 	if action == "Sell" then
@@ -330,6 +374,7 @@ function Game.action(player, action, arg)
 			d.Unlocked[tostring(arg)] = true
 		end
 		d.World = arg
+		d.VisitedWorlds[tostring(arg)] = true
 		Map.teleport(player, arg)
 	elseif action == "Hatch" then
 		Game.hatch(player, arg)
@@ -366,7 +411,8 @@ function Game.action(player, action, arg)
 	elseif action == "EquipBest" then
 		local pets = table.clone(d.Pets)
 		table.sort(pets, function(a, b)
-			return C.Pets[a.Id].Coins + C.Pets[a.Id].Damage > C.Pets[b.Id].Coins + C.Pets[b.Id].Damage
+			return (C.Pets[a.Id].Coins + C.Pets[a.Id].Damage) * P.variant(a.Tier)
+				> (C.Pets[b.Id].Coins + C.Pets[b.Id].Damage) * P.variant(b.Tier)
 		end)
 		d.Equipped = {}
 		for i = 1, math.min(#pets, B.petSlots(d)) do
@@ -405,12 +451,14 @@ function Game.action(player, action, arg)
 		else
 			Game.notice(player, "Código inválido ou já resgatado.")
 		end
+	elseif Content.action(player, action, arg) then
 	elseif action == "Setting" then
-		if arg == "Music" or arg == "Effects" then
+		if arg == "Music" or arg == "Effects" or arg == "ReducedMotion" then
 			d.Settings[arg] = not d.Settings[arg]
 		end
 	end
 	Game.snapshot(player)
+	return nil
 end
 function Game.join(player)
 	Game.Runtime[player] = {
@@ -424,6 +472,7 @@ function Game.join(player)
 	}
 	local s = Data.Sessions[player]
 	s.Data.BagCount = s.Data.BagCount or 0
+	Content.join(player)
 end
 function Game.rate(player)
 	local rt = Game.Runtime[player]
@@ -444,6 +493,9 @@ function Game.tick()
 	for player, rt in pairs(Game.Runtime) do
 		if Data.writable(player) then
 			local d = Data.Sessions[player].Data
+			if os.clock() > (rt.ComboEnds or 0) then
+				rt.Combo = 0
+			end
 			if rt.AutoMine and d.Passes.AutoMine then
 				local nearest, dist = nil, math.huge
 				for id, c in pairs(Map.Crystals) do

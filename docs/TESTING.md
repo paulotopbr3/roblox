@@ -2,13 +2,13 @@
 
 ## Verificado no Linux
 
-`python3 tools/check.py` compila 11 arquivos Luau (10 de runtime + 1 teste), executa 12 testes e monta o `.rbxlx`. Os testes exercitam os módulos efetivamente utilizados pelo servidor: catálogo, limites de progressão, fronteiras e distribuição de raridade, créditos/capacidade dos ovos, recibos repetidos, quantidade fixa de Gems, extensão dos boosts, slots e IDs. Além disso, cinco verificações executam os módulos reais de Data/Rankings e o bootstrap com serviços simulados que recusam acesso ao DataStore: ausência de aquisição no carregamento, fallback temporário no Studio, recusa segura em produção, rankings não fatais e chegada à geração do mapa. Isso não executa as APIs do motor Roblox.
+`python3 tools/check.py` compila 15 arquivos Luau (14 de runtime + 1 teste), executa 12 testes e monta o `.rbxlx`. Os testes exercitam os módulos efetivamente utilizados pelo servidor: catálogo, limites de progressão, fronteiras e distribuição de raridade, créditos/capacidade dos ovos, recibos repetidos, quantidade fixa de Gems, extensão dos boosts, slots e IDs. Além disso, cinco verificações executam os módulos reais de Data/Rankings e o bootstrap com serviços simulados que recusam acesso ao DataStore: ausência de aquisição no carregamento, fallback temporário no Studio, recusa segura em produção, rankings não fatais e chegada à geração do mapa. Isso não executa as APIs do motor Roblox.
 
 ## Roblox Studio — execução obrigatória
 
 Use uma experiência privada separada, DataStore `UniverseMiner_test_v1`, IDs de teste e **Test → Start** com dois jogadores. Abra Output e verifique que nenhum erro de script aparece. Não execute testes destrutivos contra dados de produção.
 
-1. **Entrada e mapa:** confirmar as 10 ilhas, 200 cristais, ovo, venda e AFK; jogador nasce em Starter e respawn volta ao mundo selecionado. UI aparece depois de carregar.
+1. **Entrada e mapa:** confirmar as 14 ilhas, 280 cristais e 14 titãs, ovo, venda e AFK; jogador nasce em Starter e respawn volta ao mundo selecionado. UI aparece depois de carregar.
 2. **Mineração:** clicar/toque/R2 a menos de 24 studs causa dano; longe não causa. Dois jogadores atacando o mesmo cristal recebem uma única recompensa ao destruir; HP zera e reaparece após 5 s. Raro paga 8x. Nenhum saldo muda ao enviar IDs inexistentes, NaN ou mundo diferente.
 3. **Mochila:** após 30 destruições, não causa mais dano até vender. Botão e plataforma SELL convertem o valor apenas uma vez. Auto Sell vende automaticamente; Infinite Backpack permite continuar depois de 30. Compare o saldo esperado no painel.
 4. **Ferramentas e mundos:** testar compra com saldo insuficiente/suficiente; upgrade reduz cooldown e aumenta dano. Mundos comuns exigem sequência e Coins; Void/Heaven exigem 2/4 rebirths. Passe TeleportAllWorlds ainda exige esses rebirths. Saldo nunca fica negativo com cliques rápidos.
@@ -24,3 +24,17 @@ Use uma experiência privada separada, DataStore `UniverseMiner_test_v1`, IDs de
 ## Publicação
 
 Somente depois dos testes acima: IDs e áudio autorizados, chances conferidas, configuração de produção separada, ícone/thumbnails/descrição, classificação de conteúdo e privacidade da experiência revisadas no Creator Dashboard. O repositório não publica a experiência nem cria produtos automaticamente.
+
+## Novos testes Cosmic Horizons no Studio
+
+- Ver o mapa em edição e iniciar Play; conferir que não existem duas cópias de UniverseMap. E/X/toque abre menu das estações. Cristais, vitrine e decoração devem aparecer com as cores corretas.
+- Novo perfil recebe Orbit Buddy uma vez, mais o guia. Resgatar cinco etapas sem pular/repetir recompensa. Testar cliente lento conectando após o primeiro snapshot.
+- Gems Lab cobra custo correto, limita níveis, aumenta dano/Coins/mochila/slots e preserva tudo após rebirth e relogin.
+- Fusão consome somente três pets iguais desequipados; saldo insuficiente não consome; excluir e fundir pedem confirmação. Golden/Cosmic aumentam os bônus corretos e aparecem no preview do ovo/seguidores. Pet de produção antigo permanece Normal.
+- Presente diário somente uma vez por dia UTC, continuidade e reset de streak, dia sete com Aurora Guardian, inventário cheio. Presente de sessão somente após tempo real do servidor, sem replay.
+- Atlas concede Gems uma vez por espécie, conserva descoberta após excluir/fundir; fontes de pets especiais devem estar claras. Conquistas não resetam no rebirth.
+- Dois jogadores derrotam titã; conferir proporção dos Coins, Gems mínimos, pagamento único, jogador desconectado sem grant e contribuições zeradas após respawn. Mochila cheia não bloqueia titã. Combo expira em oito segundos e nunca ultrapassa +50%.
+- Loja com IDs reais: confirmar preços de referência, preço final oficial, benefícios, passes adquiridos, categoria e produto repetível. IDs zero desativam o botão; cancelar compra não concede nada. Não pressionar jogador a comprar quando está sem Coins/Gems.
+- Emuladores em retrato/paisagem, com nove pets, inventário cheio/paginado, diferentes tamanhos de tela e controle. Conferir contraste, marcador de tutorial, Highlight, viewport de ovo e ReducedMotion. Convites dependem de experiência publicada e elegibilidade Roblox.
+
+Os testes automáticos agora incluem 12 de economia, cinco de inicialização e 16 de gameplay com serviços simulados. A exportação/importação de mapa verifica estrutura/serialização. Nenhum deles substitui a execução no motor Roblox.

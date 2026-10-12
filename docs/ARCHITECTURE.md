@@ -4,12 +4,12 @@
 
 ```text
 ReplicatedStorage/UniverseMiner
-  Config, Balance, Economy (ModuleScripts)
+  Config, Balance, Economy, Progression (ModuleScripts)
   Remotes/Action, Update (RemoteEvents, criados em runtime)
 ServerScriptService/UniverseMiner
   Main (Script)
-  Data, Game, Map, Commerce, Rankings (ModuleScripts)
-StarterPlayer/StarterPlayerScripts/UniverseMiner/Main (LocalScript)
+  Data, Game, Map, Commerce, Rankings, Content (ModuleScripts)
+StarterPlayer/StarterPlayerScripts/UniverseMiner/Main (LocalScript), UI, Visuals (ModuleScripts)
 Workspace/UniverseMap (gerado em runtime)
 PlayerGui/UniverseMinerUI (gerado no cliente)
 ```
@@ -40,6 +40,18 @@ Missões usam dias UTC. Eventos são derivados de timestamp UTC: 15 minutos a ca
 
 ## Desempenho e arte
 
-200 cristais e 10 ilhas ancoradas, sem física por frame; scheduler compartilhado de 0,15 s, cooldown autoritativo. Interface recebe status a cada dois segundos e atualizações após ações. Inventário só é reenviado quando UIDs ou equipamento mudam. Pets são cosméticos locais (até 6) e não criam física; outros jogadores não veem esses seguidores nesta versão. Partículas e luzes têm vida curta e são removidas por Debris. A UI usa Activated, raycast de mouse/toque e atalhos de gamepad, com menu rolável. Verifique telas pequenas e safe areas nos emuladores.
+280 cristais, 14 titãs e 14 ilhas ancoradas, sem física por frame; scheduler compartilhado de 0,15 s, cooldown autoritativo. Interface recebe status a cada dois segundos e atualizações após ações. Inventário só é reenviado quando UIDs ou equipamento mudam. Pets são cosméticos locais (até 9) e não criam física; outros jogadores não veem esses seguidores nesta versão. Partículas e luzes têm vida curta e são removidas por Debris. A UI usa Activated, raycast de mouse/toque e atalhos de gamepad, com menu rolável. Verifique telas pequenas e safe areas nos emuladores.
 
-Modelos de cristais, picareta e pets são gerados como geometria básica. Os 74 pets têm identidades e multiplicadores próprios, mas usam o mesmo corpo geométrico com cores por raridade. Upgrades mudam as estatísticas da picareta; o modelo visual básico é compartilhado. O projeto não promete métricas de retenção ou receita: ajuste balanceamento com testes reais, sem ocultar chances e com confirmação oficial de compras.
+Modelos de cristais, picareta e pets são gerados como geometria básica. As 104 espécies de pets têm identidades e multiplicadores próprios, usam corpos geométricos com olhos, orelhas, asas/coroas por raridade e cores por mundo/variante. Upgrades mudam estatísticas e a cor/material da picareta; o modelo visual básico é compartilhado. O projeto não promete métricas de retenção ou receita: ajuste balanceamento com testes reais, sem ocultar chances e com confirmação oficial de compras.
+
+## Conteúdo, migração e interface Cosmic Horizons
+
+`Content` recebe a API de `Game` por inicialização explícita, evitando dependência circular. `Progression` contém operações puras usadas pelo servidor: custo de upgrade, capacidade, streak, seleção de fusão e potência das variantes. Campos novos são adicionados ao perfil v1; pets antigos recebem Tier=0 e descobertas são reconstruídas do inventário. Rebirth mantém upgrades, conquistas e coleção.
+
+Fusão seleciona três UIDs correspondentes e desequipados, verifica Gems antes de mutar, consome os três e cria uma variante. Golden multiplica os BÔNUS do pet em 2,5; Cosmic em 6,25. O multiplicador total continua aditivo entre pets. A fusão não usa sorte e não cria uma nova espécie no atlas. Cada primeira descoberta e conquista pode ser resgatada uma vez. Presentes de sessão usam relógio do servidor; reconectar reinicia o cronômetro dessa sessão. Presente diário usa dia UTC, streak de sete dias e reset de sequência quando se perde um dia.
+
+Titãs têm 100x HP, não ocupam mochila e guardam contribuição de dano no servidor até a morte. Somente jogadores conectados com perfil gravável recebem Coins proporcionais à contribuição e Gems (mínimo de cinco antes do multiplicador). Não se paga novamente após HP zero. Ao respawn, contribuições são zeradas. Combos são contados por cristal destruído em até oito segundos e limitados a 20, aumentando Coins até 50%.
+
+Mochila pode chegar a 180 espaços por upgrades gratuitos. Até +3 slots gratuitos de Gems se acumulam com os +3 do passe, totalizando nove pets. O cliente pagina inventário em 24 itens; HUD, menus e prompts usam palavras e benefícios claros. `Sync` sempre envia inventário completo, mesmo quando o primeiro snapshot chegou antes do listener do cliente.
+
+`tools/bake_map.py` executa o gerador real com construtores de geometria simulados e exporta a cena para o place. Confere 14 mundos, 294 cristais/titãs e importa o XML pelo leitor nativo do Rojo para validar o formato. Esse preview não executa física nem prova renderização no Roblox. O servidor destrói apenas `Workspace.UniverseMap` e reconstrói o mapa em Play para registrar prompts, atributos e HP.

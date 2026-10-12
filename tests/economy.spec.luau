@@ -11,12 +11,12 @@ local function test(name, fn)
 	print("PASS " .. name)
 end
 test("catalog supports full progression", function()
-	assert(#C.Worlds == 10 and #C.Tools == 36 and #C.Rarities == 7)
+	assert(#C.Worlds == 14 and #C.Tools == 56 and #C.Rarities == 7)
 	local pets = 0
 	for _ in pairs(C.Pets) do
 		pets += 1
 	end
-	assert(pets == 74)
+	assert(pets == 104)
 	for i = 2, #C.Tools do
 		assert(
 			C.Tools[i].Cost > C.Tools[i - 1].Cost
