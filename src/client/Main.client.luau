@@ -10,7 +10,26 @@ local player = Players.LocalPlayer
 local shared = game.ReplicatedStorage:WaitForChild("UniverseMiner")
 local C = require(shared.Config)
 local B = require(shared.Balance)
-local remotes = shared:WaitForChild("Remotes")
+local remotes = shared:WaitForChild("Remotes", 15)
+if not remotes then
+	local diagnostic = Instance.new("ScreenGui")
+	diagnostic.Name = "UniverseStartupError"
+	diagnostic.ResetOnSpawn = false
+	diagnostic.Parent = player:WaitForChild("PlayerGui")
+	local message = Instance.new("TextLabel")
+	message.Size = UDim2.fromScale(0.8, 0.25)
+	message.Position = UDim2.fromScale(0.1, 0.35)
+	message.BackgroundColor3 = Color3.fromRGB(40, 25, 40)
+	message.TextColor3 = Color3.new(1, 1, 1)
+	message.Font = Enum.Font.GothamBold
+	message.TextSize = 22
+	message.TextWrapped = true
+	message.Text =
+		"Universe Miner não iniciou. No Studio, abra View → Output e confira a primeira mensagem vermelha."
+	message.Parent = diagnostic
+	warn("UniverseMiner: server failed to create Remotes within 15 seconds")
+	return
+end
 local action = remotes:WaitForChild("Action")
 local update = remotes:WaitForChild("Update")
 local state = nil

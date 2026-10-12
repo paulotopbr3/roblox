@@ -361,7 +361,7 @@ local RunService = game:GetService("RunService")
 local Http = game:GetService("HttpService")
 local C = require(game.ReplicatedStorage.UniverseMiner.Config)
 local Data = { Sessions = {} }
-local store = DSS:GetDataStore(C.DataStore)
+local store = nil -- Acquire inside pcall: unpublished Studio places can reject this call.
 local token = game.JobId .. ":" .. Http:GenerateGUID(false)
 local LEASE = 240
 local function copy(value)
@@ -413,7 +413,17 @@ local function normalize(raw)
 			d[k] = raw[k]
 		end
 	end
-	for _, key in ipairs({ "Coins", "Gems", "Rebirths", "Bag", "BagCount", "EggCredits", "Crystals", "TotalCoins", "TotalPets" }) do
+	for _, key in ipairs({
+		"Coins",
+		"Gems",
+		"Rebirths",
+		"Bag",
+		"BagCount",
+		"EggCredits",
+		"Crystals",
+		"TotalCoins",
+		"TotalPets",
+	}) do
 		local n = d[key]
 		d[key] = (n == n and n >= 0 and n < math.huge) and math.min(C.MaxNumber, n) or 0
 	end
@@ -433,6 +443,7 @@ end
 function Data.load(player)
 	local loaded, blocked
 	local ok, err = pcall(function()
+		store = store or DSS:GetDataStore(C.DataStore)
 		store:UpdateAsync("u:" .. player.UserId, function(old)
 			blocked = false
 			if old and old.Lock and old.Lock.Token ~= token and (old.Lock.Expires or 0) > os.time() then
@@ -1396,8 +1407,12 @@ local Players = game:GetService("Players")
 local C = require(game.ReplicatedStorage.UniverseMiner.Config)
 local Rankings = { Cache = {}, Updated = 0, Busy = false }
 local stores = {}
-for _, key in ipairs({ "Coins", "Rebirths", "Pets", "Gems" }) do
-	stores[key] = DSS:GetOrderedDataStore(C.DataStore .. "_Rank_" .. key)
+local keys = { "Coins", "Rebirths", "Pets", "Gems" }
+local function getStore(key)
+	if not stores[key] then
+		stores[key] = DSS:GetOrderedDataStore(C.DataStore .. "_Rank_" .. key)
+	end
+	return stores[key]
 end
 -- OrderedDataStore accepts signed integers, not arbitrary large doubles.
 local function encode(value)
@@ -1410,7 +1425,7 @@ function Rankings.write(player, d)
 	local values = { Coins = d.TotalCoins, Rebirths = d.Rebirths, Pets = d.TotalPets, Gems = d.Gems }
 	for key, value in pairs(values) do
 		local ok, err = pcall(function()
-			stores[key]:SetAsync(tostring(player.UserId), encode(value))
+			getStore(key):SetAsync(tostring(player.UserId), encode(value))
 		end)
 		if not ok then
 			warn("Ranking " .. key .. ":", err)
@@ -1422,9 +1437,9 @@ function Rankings.refresh()
 		return
 	end
 	Rankings.Busy = true
-	for key, store in pairs(stores) do
+	for _, key in ipairs(keys) do
 		local ok, result = pcall(function()
-			return store:GetSortedAsync(false, 20):GetCurrentPage()
+			return getStore(key):GetSortedAsync(false, 20):GetCurrentPage()
 		end)
 		if ok then
 			local rows = {}
@@ -1482,7 +1497,26 @@ local player = Players.LocalPlayer
 local shared = game.ReplicatedStorage:WaitForChild("UniverseMiner")
 local C = require(shared.Config)
 local B = require(shared.Balance)
-local remotes = shared:WaitForChild("Remotes")
+local remotes = shared:WaitForChild("Remotes", 15)
+if not remotes then
+	local diagnostic = Instance.new("ScreenGui")
+	diagnostic.Name = "UniverseStartupError"
+	diagnostic.ResetOnSpawn = false
+	diagnostic.Parent = player:WaitForChild("PlayerGui")
+	local message = Instance.new("TextLabel")
+	message.Size = UDim2.fromScale(0.8, 0.25)
+	message.Position = UDim2.fromScale(0.1, 0.35)
+	message.BackgroundColor3 = Color3.fromRGB(40, 25, 40)
+	message.TextColor3 = Color3.new(1, 1, 1)
+	message.Font = Enum.Font.GothamBold
+	message.TextSize = 22
+	message.TextWrapped = true
+	message.Text =
+		"Universe Miner não iniciou. No Studio, abra View → Output e confira a primeira mensagem vermelha."
+	message.Parent = diagnostic
+	warn("UniverseMiner: server failed to create Remotes within 15 seconds")
+	return
+end
 local action = remotes:WaitForChild("Action")
 local update = remotes:WaitForChild("Update")
 local state = nil

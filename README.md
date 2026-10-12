@@ -28,7 +28,7 @@ No ambiente Linux, `bash tools/bootstrap.sh` prepara Rojo 7.5.1 e Luau 0.695 for
 - Atualize `Products.WeeklyPet.Pet` para trocar a oferta semanal; a configuração atual oferece Weekly Supernova. Não remova IDs de produtos com recibos pendentes.
 - Execute o [roteiro de testes no Studio](docs/TESTING.md) antes de liberar o jogo.
 
-Sem DataStore disponível, **somente no Studio** é permitida uma sessão temporária, indicada na tela. Em produção, falha de carregamento impede a entrada para proteger dados. O ambiente Linux validou compilação, 12 testes da economia e build do place; motor Roblox, controles, persistência e pagamentos ainda exigem validação no Studio.
+Sem DataStore disponível, **somente no Studio** é permitida uma sessão temporária, indicada na tela. Em produção, falha de carregamento impede a entrada para proteger dados. O ambiente Linux validou compilação, 12 testes da economia, 5 verificações de inicialização com APIs simuladas e build do place; motor Roblox, controles, persistência e pagamentos ainda exigem validação no Studio.
 
 ## Estrutura
 
@@ -46,3 +46,7 @@ Todos os RemoteEvents são criados pelo servidor. O cliente envia intenções; o
 ## Baixar pelo GitHub
 
 No repositório, use **Code → Download ZIP**, extraia e abra `UniverseMiner.rbxlx` no Roblox Studio. A versão anterior do README foi preservada em `docs/README-anterior.txt`.
+
+## Se o mapa não aparecer
+
+Baixe o ZIP atualizado, extraia em uma pasta nova e abra `UniverseMiner.rbxlx`; clique em **Play (F5)**. O mapa e os menus são criados ao executar o jogo. A inicialização tolera DataStore indisponível em arquivos ainda não publicados no Studio, usando dados temporários. Se aparecer um aviso de falha, abra **View → Output** e copie a primeira mensagem vermelha para diagnóstico.

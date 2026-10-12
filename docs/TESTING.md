@@ -2,7 +2,7 @@
 
 ## Verificado no Linux
 
-`python3 tools/check.py` compila 11 arquivos Luau (10 de runtime + 1 teste), executa 12 testes e monta o `.rbxlx`. Os testes exercitam os módulos efetivamente utilizados pelo servidor: catálogo, limites de progressão, fronteiras e distribuição de raridade, créditos/capacidade dos ovos, recibos repetidos, quantidade fixa de Gems, extensão dos boosts, slots e IDs. Isso não executa as APIs do motor Roblox.
+`python3 tools/check.py` compila 11 arquivos Luau (10 de runtime + 1 teste), executa 12 testes e monta o `.rbxlx`. Os testes exercitam os módulos efetivamente utilizados pelo servidor: catálogo, limites de progressão, fronteiras e distribuição de raridade, créditos/capacidade dos ovos, recibos repetidos, quantidade fixa de Gems, extensão dos boosts, slots e IDs. Além disso, cinco verificações executam os módulos reais de Data/Rankings e o bootstrap com serviços simulados que recusam acesso ao DataStore: ausência de aquisição no carregamento, fallback temporário no Studio, recusa segura em produção, rankings não fatais e chegada à geração do mapa. Isso não executa as APIs do motor Roblox.
 
 ## Roblox Studio — execução obrigatória
 

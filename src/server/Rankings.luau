@@ -3,8 +3,12 @@ local Players = game:GetService("Players")
 local C = require(game.ReplicatedStorage.UniverseMiner.Config)
 local Rankings = { Cache = {}, Updated = 0, Busy = false }
 local stores = {}
-for _, key in ipairs({ "Coins", "Rebirths", "Pets", "Gems" }) do
-	stores[key] = DSS:GetOrderedDataStore(C.DataStore .. "_Rank_" .. key)
+local keys = { "Coins", "Rebirths", "Pets", "Gems" }
+local function getStore(key)
+	if not stores[key] then
+		stores[key] = DSS:GetOrderedDataStore(C.DataStore .. "_Rank_" .. key)
+	end
+	return stores[key]
 end
 -- OrderedDataStore accepts signed integers, not arbitrary large doubles.
 local function encode(value)
@@ -17,7 +21,7 @@ function Rankings.write(player, d)
 	local values = { Coins = d.TotalCoins, Rebirths = d.Rebirths, Pets = d.TotalPets, Gems = d.Gems }
 	for key, value in pairs(values) do
 		local ok, err = pcall(function()
-			stores[key]:SetAsync(tostring(player.UserId), encode(value))
+			getStore(key):SetAsync(tostring(player.UserId), encode(value))
 		end)
 		if not ok then
 			warn("Ranking " .. key .. ":", err)
@@ -29,9 +33,9 @@ function Rankings.refresh()
 		return
 	end
 	Rankings.Busy = true
-	for key, store in pairs(stores) do
+	for _, key in ipairs(keys) do
 		local ok, result = pcall(function()
-			return store:GetSortedAsync(false, 20):GetCurrentPage()
+			return getStore(key):GetSortedAsync(false, 20):GetCurrentPage()
 		end)
 		if ok then
 			local rows = {}

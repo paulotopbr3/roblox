@@ -3,7 +3,7 @@ local RunService = game:GetService("RunService")
 local Http = game:GetService("HttpService")
 local C = require(game.ReplicatedStorage.UniverseMiner.Config)
 local Data = { Sessions = {} }
-local store = DSS:GetDataStore(C.DataStore)
+local store = nil -- Acquire inside pcall: unpublished Studio places can reject this call.
 local token = game.JobId .. ":" .. Http:GenerateGUID(false)
 local LEASE = 240
 local function copy(value)
@@ -55,7 +55,17 @@ local function normalize(raw)
 			d[k] = raw[k]
 		end
 	end
-	for _, key in ipairs({ "Coins", "Gems", "Rebirths", "Bag", "BagCount", "EggCredits", "Crystals", "TotalCoins", "TotalPets" }) do
+	for _, key in ipairs({
+		"Coins",
+		"Gems",
+		"Rebirths",
+		"Bag",
+		"BagCount",
+		"EggCredits",
+		"Crystals",
+		"TotalCoins",
+		"TotalPets",
+	}) do
 		local n = d[key]
 		d[key] = (n == n and n >= 0 and n < math.huge) and math.min(C.MaxNumber, n) or 0
 	end
@@ -75,6 +85,7 @@ end
 function Data.load(player)
 	local loaded, blocked
 	local ok, err = pcall(function()
+		store = store or DSS:GetDataStore(C.DataStore)
 		store:UpdateAsync("u:" .. player.UserId, function(old)
 			blocked = false
 			if old and old.Lock and old.Lock.Token ~= token and (old.Lock.Expires or 0) > os.time() then

@@ -4,6 +4,7 @@ from pathlib import Path
 import os
 import shutil
 import subprocess
+import sys
 import xml.etree.ElementTree as ET
 
 root = Path(__file__).resolve().parents[1]
@@ -22,6 +23,7 @@ for file in files:
         raise SystemExit(result.stderr.decode(errors='replace'))
 print(f'PASS: {len(files)} Luau files compile', flush=True)
 subprocess.run([tool('luau', 'luau'), str(root / 'tests/economy.spec.luau')], check=True)
+subprocess.run([sys.executable, str(root / 'tests/studio_startup.py'), tool('luau', 'luau')], check=True)
 output = root / 'UniverseMiner.rbxlx'
 subprocess.run([tool('rojo', 'rojo'), 'build', str(root / 'default.project.json'), '-o', str(output)], check=True)
 place = ET.parse(output)
