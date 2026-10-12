@@ -4,12 +4,12 @@
 
 ```text
 ReplicatedStorage/UniverseMiner
-  Config, Balance, Economy, Progression, Art, Models (ModuleScripts)
+  Config, Balance, Economy, Progression, Art, Models, Presentation (ModuleScripts)
   Remotes/Action, Update (RemoteEvents, criados em runtime)
 ServerScriptService/UniverseMiner
   Main (Script)
   Data, Game, Map, Commerce, Rankings, Content, Gear (ModuleScripts)
-StarterPlayer/StarterPlayerScripts/UniverseMiner/Main (LocalScript), UI, Visuals (ModuleScripts)
+StarterPlayer/StarterPlayerScripts/UniverseMiner/Main (LocalScript), UI, Visuals, Graphics (ModuleScripts)
 Workspace/UniverseMap (gerado em runtime)
 PlayerGui/UniverseMinerUI (gerado no cliente)
 ```
@@ -65,3 +65,11 @@ Viewports são estáticos nas galerias. Os seguidores mantêm um corpo ancorado 
 Top Global: SurfaceGui na praça e menu compartilham Cache/Available do servidor. Score histórico usa UpdateAsync(max(old,novo)); Gems usa SetAsync do saldo atual. API indisponível deixa entradas anteriores em cache e marca como indisponível. Sem entradas, exibe traços e texto de status. Nenhum ranking local se apresenta como global.
 
 A referência solicitada foi interpretada como clareza visual de praça, vitrines e galerias; o link específico de “Roube um Ovo” não foi fornecido nesta atualização. Os modelos/cores desta versão são originais e mantêm o loop de mineração.
+
+## Camada gráfica Prismatic Worlds
+
+`Presentation` guarda perfis visuais puros: material, céu, horário, exposição e qualidade. `Graphics` aplica os perfis localmente quando mundo/preset mudam, sem tocar no servidor econômico. A opção Graphics é validada e persistida com Music/Effects/ReducedMotion; perfis antigos recebem Auto. Dados e ID do DataStore v1 permanecem intactos.
+
+A camada GraphicsDetails contém apenas decoração; Low e mundos distantes usam LocalTransparencyModifier e desativam emissores/luzes dessa camada. Depósitos, hit targets, pisos, prompts, vitrines e landmarks não dependem dessa camada. Low limita bursts a seis partículas e desativa bloom/sombras locais; High aceita até 24 por burst. A geometria base continua replicada: LOD reduz apresentação, não memória ou tráfego de instâncias já recebidas. Validar dispositivos reais antes de prometer FPS.
+
+Cada face clicável de cristal ou titã compartilha CrystalId, Alive, HP e MaxHealth do alvo autoritativo. A transição para zero desativa todas as faces e esconde peças; respawn reativa as mesmas propriedades. As barras representam Health/MaxHealth. Isso mantém raycasts intuitivos sem multiplicar recompensas. Armadura e olhos dos titãs conservam suas próprias cores.

@@ -32,6 +32,7 @@ local function object(class)
  if class=="ScrollingFrame" then item.CanvasPosition={X=0,Y=0} end
  return item
 end
+function methods:GetDescendants() local all={} for _,c in ipairs(self.Children) do table.insert(all,c) for _,d in ipairs(c:GetDescendants()) do table.insert(all,d) end end return all end
 function methods:WaitForChild(name) return assert(self:FindFirstChild(name),name) end
 function methods:FindFirstChildWhichIsA(class)
  for _,c in ipairs(self.Children) do if c:IsA(class) then return c end end
@@ -62,7 +63,7 @@ function methods:FireServer(key,arg) table.insert(intents,{Key=key,Arg=arg}) end
 local camera=object("Camera") camera.ViewportSize={X=1366,Y=900} world.CurrentCamera=camera
 local guiService={SelectedObject=nil}
 local input={InputBegan=signal(),InputEnded=signal(),TouchTapInWorld=signal(),GamepadEnabled=false,GetFocusedTextBox=function() return nil end}
-local services={Players={LocalPlayer=user},UserInputService=input,ContextActionService={BindAction=function() end},RunService={RenderStepped=signal()},Debris={AddItem=function() end},SoundService=object("SoundService"),GuiService=guiService,SocialService={},StarterGui={SetCoreGuiEnabled=function() end},TweenService={Create=function() return {Play=function() end} end},ReplicatedStorage=replicated}
+local services={Players={LocalPlayer=user},UserInputService=input,ContextActionService={BindAction=function() end},RunService={RenderStepped=signal()},Debris={AddItem=function() end},SoundService=object("SoundService"),GuiService=guiService,SocialService={},StarterGui={SetCoreGuiEnabled=function() end},TweenService={Create=function() return {Play=function() end} end},ReplicatedStorage=replicated,Lighting=object("Lighting")}
 env.game.GetService=function(_,key) return assert(services[key],key) end
 env.game.ReplicatedStorage=replicated env.Instance.new=object
 function methods:PivotTo(value) self.PrimaryPart.CFrame=value end
@@ -85,7 +86,7 @@ local function module(name,source,parent)
  modules[name]=load(source) return modules[name]
 end
 '''
-for name,path,parent in [('Config','shared/Config','shared'),('Balance','shared/Balance','shared'),('Progression','shared/Progression','shared'),('Art','shared/Art','shared'),('Models','shared/Models','shared'),('UI','client/UI','client'),('Visuals','client/Visuals','client')]:
+for name,path,parent in [('Config','shared/Config','shared'),('Balance','shared/Balance','shared'),('Progression','shared/Progression','shared'),('Art','shared/Art','shared'),('Presentation','shared/Presentation','shared'),('Models','shared/Models','shared'),('UI','client/UI','client'),('Graphics','client/Graphics','client'),('Visuals','client/Visuals','client')]:
     code+='\nmodule("'+name+'",'+literal(root/('src/'+path+'.luau'))+','+parent+')\n'
 code+='env.script={Parent=client}\nload('+literal(root/'src/client/Main.client.luau')+')\n'
 code+=r'''
@@ -106,6 +107,15 @@ outbound.OnClientEvent:Fire("Rankings",{Rows={Coins={{Name="RealPlayer",UserId=1
 assert(count(playerGui,"ImageLabel")>0,"Top global includes player portraits")
 camera.ViewportSize={X=375,Y=812} camera:GetPropertyChangedSignal("ViewportSize"):Fire()
 for _,name in ipairs({"Pets","Tools","Worlds","More"}) do outbound.OnClientEvent:Fire("Open",name) end
+local map=object("Folder") map.Name="UniverseMap" map.Parent=world
+local biome=object("Folder") biome:SetAttribute("WorldIndex",1) biome.Parent=map
+local details=object("Folder") details.Name="GraphicsDetails" details.Parent=biome
+local leaf=object("Part") leaf.Parent=details
+snapshot.Settings.Graphics="Low" outbound.OnClientEvent:Fire("State",snapshot)
+assert(leaf.LocalTransparencyModifier==1 and modules.Graphics.Effective=="Low")
+snapshot.Settings.Graphics="High" outbound.OnClientEvent:Fire("State",snapshot)
+assert(leaf.LocalTransparencyModifier==0 and modules.Graphics.Effective=="High")
+print("PASS quality changes hide only the cosmetic detail layer")
 print("PASS "..checks.." actual client menus construct with substituted Roblox services")
 print("PASS visual galleries include portrait viewports, and global table includes avatars")
 print("PASS phone resize executes without errors (rendering still requires Studio)")

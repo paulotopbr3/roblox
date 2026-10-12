@@ -21,9 +21,34 @@
     },
     "Lighting": {
       "$properties": {
-        "ClockTime": 14,
+        "ClockTime": 16.3,
         "Brightness": 2,
-        "GlobalShadows": true
+        "GlobalShadows": true,
+        "EnvironmentDiffuseScale": 0.75,
+        "EnvironmentSpecularScale": 0.9,
+        "ExposureCompensation": 0.05,
+        "LightingStyle": "Realistic",
+        "PrioritizeLightingQuality": true
+      },
+      "UniverseGrade": {
+        "$className": "ColorCorrectionEffect",
+        "$properties": {
+          "Contrast": 0.06,
+          "Saturation": 0.07,
+          "TintColor": [
+            1,
+            0.98,
+            0.95
+          ]
+        }
+      },
+      "UniverseBloom": {
+        "$className": "BloomEffect",
+        "$properties": {
+          "Intensity": 0.1,
+          "Size": 20,
+          "Threshold": 1.8
+        }
       }
     },
     "Workspace": {

@@ -25,6 +25,7 @@ for file in files:
 print(f'PASS: {len(files)} Luau files compile', flush=True)
 subprocess.run([tool('luau', 'luau'), str(root / 'tests/economy.spec.luau')], check=True)
 subprocess.run([tool('luau', 'luau'), str(root / 'tests/art.spec.luau')], check=True)
+subprocess.run([tool('luau', 'luau'), str(root / 'tests/graphics.spec.luau')], check=True)
 subprocess.run([sys.executable, str(root / 'tests/studio_startup.py'), tool('luau', 'luau')], check=True)
 subprocess.run([sys.executable, str(root / 'tests/gameplay.py'), tool('luau', 'luau')], check=True)
 subprocess.run([sys.executable, str(root / 'tests/interface.py'), tool('luau', 'luau')], check=True)
@@ -35,5 +36,5 @@ bake(output, tool('luau', 'luau'), tool('rojo', 'rojo'))
 place = ET.parse(output)
 classes = [x.attrib.get('class') for x in place.iter('Item')]
 assert classes.count('Script') == 1 and classes.count('LocalScript') == 1
-assert classes.count('ModuleScript') == 15
-print('PASS: place includes the server, client and 15 modules')
+assert classes.count('ModuleScript') == 17
+print('PASS: place includes the server, client and 17 modules')

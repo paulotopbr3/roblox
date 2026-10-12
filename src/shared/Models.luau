@@ -10,7 +10,11 @@ local function build(spec, parent, pose, anchored)
 		p.Name = def.Name
 		p.Size = Vector3.new(table.unpack(def.Size))
 		p.Color = Color3.fromRGB(table.unpack(def.Color))
-		p.Material = def.Glow and Enum.Material.Neon or Enum.Material.SmoothPlastic
+		p.Material = def.Glow and Enum.Material.Neon
+			or (def.Material and Enum.Material[def.Material] or Enum.Material.SmoothPlastic)
+		p.Reflectance = def.Reflectance or 0
+		p.Transparency = def.Transparency or 0
+		p.CastShadow = not def.Glow
 		p.CanCollide = false
 		p.CanQuery = false
 		p.Massless = true

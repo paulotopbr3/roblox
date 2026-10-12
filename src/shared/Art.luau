@@ -93,6 +93,35 @@ function Art.tool(index)
 	if tier >= 11 then
 		table.insert(parts, shape("Crown", { 0.3, 1.1, 0.3 }, { 0, 2.1, 0 }, col, "Wedge", nil, true))
 	end
+	for _, p in ipairs(parts) do
+		p.Material = p.Name == "Handle" and (tier < 4 and "Wood" or "Metal") or p.Name == "Grip" and "Fabric" or "Metal"
+		p.Reflectance = p.Name == "Head" and 0.07 or 0
+		if p.Name == "Blade" then
+			p.Glow = false
+		end
+	end
+	for _, side in ipairs({ -1, 1 }) do
+		table.insert(
+			parts,
+			shape(
+				"BladeEdge",
+				{ 0.5, 0.1, 0.72 },
+				{ side * 1.27, 0.63, 0 },
+				{ 229, 242, 251 },
+				"Wedge",
+				{ 0, side == 1 and 180 or 0, side * 20 }
+			)
+		)
+	end
+	if tier >= 5 then
+		table.insert(parts, shape("EnergyInlay", { 0.12, 1.9, 0.1 }, { 0, 0.45, -0.18 }, col, "Block", nil, true))
+	end
+	for _, p in ipairs(parts) do
+		if p.Name == "BladeEdge" then
+			p.Material = "Metal"
+			p.Reflectance = 0.06
+		end
+	end
 	return { Tier = tier, Color = col, Parts = parts }
 end
 function Art.pet(info, tier)
@@ -105,7 +134,17 @@ function Art.pet(info, tier)
 		or rank == 5 and "Phoenix"
 		or rank == 6 and "Titan"
 		or "Oracle"
-	local parts = { shape("Body", { 1.8, 1.6, 1.6 }, { 0, 0, 0 }, col, rank == 1 and "Ball" or "Block", nil, tier > 0) }
+	local parts = {
+		shape(
+			"Body",
+			{ 1.8, 1.6, 1.6 },
+			{ 0, 0, 0 },
+			col,
+			(rank == 3 or rank == 6) and "Block" or "Ball",
+			nil,
+			tier > 0
+		),
+	}
 	local dark = { 27, 33, 56 }
 	local pale = { 248, 251, 255 }
 	for _, side in ipairs({ -1, 1 }) do
@@ -178,6 +217,24 @@ function Art.pet(info, tier)
 		)
 	elseif motif == 3 then
 		table.insert(parts, shape("Fin", { 0.25, 0.9, 0.55 }, { 0, 0.9, 0.35 }, { 119, 232, 255 }, "Wedge"))
+	end
+	for _, side in ipairs({ -1, 1 }) do
+		table.insert(
+			parts,
+			shape("Cheek", { 0.25, 0.13, 0.08 }, { side * 0.6, -0.16, -0.69 }, { 247, 157, 177 }, "Ball")
+		)
+		table.insert(parts, shape("Paw", { 0.43, 0.27, 0.45 }, { side * 0.45, -0.78, -0.32 }, pale, "Ball"))
+	end
+	for _, p in ipairs(parts) do
+		if p.Name == "Eye" then
+			p.Material = "Glass"
+			p.Reflectance = 0.05
+		elseif p.Name == "EyeSpark" then
+			p.Glow = true
+		end
+	end
+	if family == "Fox" then
+		table.insert(parts, shape("TailTip", { 0.55, 0.45, 0.5 }, { 0, 0, 1.88 }, pale, "Ball"))
 	end
 	return { Family = family, Color = col, Parts = parts }
 end

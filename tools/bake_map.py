@@ -82,15 +82,17 @@ ENUMS={
     'SurfaceType.Smooth':0,'PartType.Ball':0,'PartType.Cylinder':2,
     'Material.SmoothPlastic':272,'Material.Neon':288,'Material.Sand':1296,
     'Material.Slate':800,'Material.Ice':1536,'Material.Metal':1088,
+    'Material.Wood':512,'Material.WoodPlanks':528,'Material.Rock':896,'Material.Grass':1280,'Material.Snow':1328,'Material.Marble':784,'Material.Concrete':816,'Material.Fabric':1312,
     'NormalId.Front':5,'TextXAlignment.Left':0,'Material.Glass':1568,
     'Font.GothamBold':19,'KeyCode.E':101,'KeyCode.ButtonX':1000,
 }
 
 def bake(place, luau, rojo):
     code=HARNESS+'\nlocal config=load('+literal(ROOT/'src/shared/Config.luau')+')\n'
+    code+='local presentation=load('+literal(ROOT/'src/shared/Presentation.luau')+')\n'
     code+='local art=load('+literal(ROOT/'src/shared/Art.luau')+')\n'
-    code+='local modules={Config=config,Art=art,Balance=load('+literal(ROOT/'src/shared/Balance.luau')+')}\n'
-    code+='env.script={Parent={Art="Art"}} env.game.ReplicatedStorage.UniverseMiner.Models="Models" env.game.ReplicatedStorage.UniverseMiner.Balance="Balance"\n'
+    code+='local modules={Config=config,Art=art,Presentation=presentation,Balance=load('+literal(ROOT/'src/shared/Balance.luau')+')}\n'
+    code+='env.script={Parent={Art="Art"}} env.game.ReplicatedStorage.UniverseMiner.Models="Models" env.game.ReplicatedStorage.UniverseMiner.Balance="Balance" env.game.ReplicatedStorage.UniverseMiner.Presentation="Presentation"\n'
     code+='env.require=function(key) return assert(modules[key],key) end\nmodules.Models=load('+literal(ROOT/'src/shared/Models.luau')+')\n'
     code+='local gear=load('+literal(ROOT/'src/server/Gear.luau')+')\n'
     code+=r"""
@@ -113,6 +115,18 @@ assert(equipped:GetAttribute("ToolIndex")==56 and equipped:FindFirstChild("Crown
 local count,bosses=0,0 for _,c in pairs(map.Crystals) do count+=1 if c.Boss then bosses+=1 end end
 assert(count==#config.Worlds*21 and bosses==#config.Worlds,"Every world must have 20 deposits and a boss")
 assert(#map.Spawns==#config.Worlds and #map.AFK==2)
+local deposit=map.Crystals[101]
+assert(deposit.Part.Material.Name=="Material.Glass" and deposit.Part.Transparency==0.08)
+assert(map.hit(deposit,deposit.MaxHealth) and not deposit.Part:GetAttribute("Alive"))
+for _,p in ipairs(deposit.Pieces) do if p:GetAttribute("CrystalId") then assert(not p:GetAttribute("Alive") and p:GetAttribute("Health")==0) end end
+map.reset(deposit)
+assert(deposit.Bar.Size.XS==1 and deposit.Part:GetAttribute("Alive"))
+local titan=map.Crystals[199]
+local eye
+for _,p in ipairs(titan.Pieces) do if p.Name=="TitanEye" then eye=p break end end
+assert(eye and eye.Color.R==1,"The Titan keeps its unique face palette")
+map.hit(titan,titan.MaxHealth/2) assert(titan.Bar.Size.XS==0.5)
+map.reset(titan) assert(eye.Color.R==1)
 for _,key in ipairs({"Coins","Rebirths","Pets","Gems"}) do assert(map.RankBoards[key] and #map.RankBoards[key].Rows==10) end
 map.updateRankings({Coins={{Name="ActualPlayer",Value=1000}}},1,{Coins=true})
 assert(map.RankBoards.Coins.Rows[1].Text:find("ActualPlayer") and map.RankBoards.Gems.Status.Text:find("indisponível"))

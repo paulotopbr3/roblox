@@ -4,6 +4,7 @@ local Debris = game:GetService("Debris")
 local Run = game:GetService("RunService")
 local Sound = game:GetService("SoundService")
 local C = require(game.ReplicatedStorage.UniverseMiner.Config)
+local Graphics = require(script.Parent.Graphics)
 local Models = require(game.ReplicatedStorage.UniverseMiner.Models)
 local player = Players.LocalPlayer
 local V = { State = nil, Pets = {}, Signature = "" }
@@ -48,7 +49,7 @@ function V.burst(position, count, col)
 	emitter.Speed = NumberRange.new(4, 10)
 	emitter.SpreadAngle = Vector2.new(180, 180)
 	emitter.Parent = p
-	emitter:Emit(count)
+	emitter:Emit(Graphics.particles(count))
 	Tween:Create(light, TweenInfo.new(0.5), { Brightness = 0 }):Play()
 	Debris:AddItem(p, 1)
 end

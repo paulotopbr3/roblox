@@ -1,3 +1,15 @@
+# Prismatic Worlds
+
+- Plataformas circulares em camadas, falésias facetadas e cercas na borda; cenário opcional com picos por bioma.
+- Grass, Sand, Rock, Metal, Marble e Snow diferenciam os pisos. Lojas ganham mármore, madeira, vigas, toldos e luz ambiente.
+- Cristais de vidro com núcleo emissivo, facetas clicáveis e barra de vida. Todas as faces seguem o HP e desaparecem juntas ao destruir.
+- Titãs deixam o formato de esfera e ganham corpo, rosto, armadura, olhos e núcleo. HP e contribuições de equipe permanecem no mesmo servidor autoritativo.
+- Pets mais arredondados e detalhados; equipamentos recebem materiais de madeira, tecido e metal, arestas e energia.
+- Iluminação Realistic, diffuse/specular, exposição, atmosfera e color grading por mundo, com bloom limitado.
+- Qualidade Auto/High/Low persistente. Auto usa preset leve em aparelhos com toque. LOD afeta somente a decoração; controles, cristais, física e economia continuam ativos.
+- Acabamento da interface com gradientes discretos, mantendo galerias, retratos e navegação simples.
+- Testes verificam menus, alternância de qualidade, persistência, seleção das faces e barras de HP; a execução gráfica real segue pendente de Studio.
+
 # Crystal Isles
 
 - 56 modelos de picaretas: ferramentas reais na mão, troca imediata ao comprar/renascer, golpe usando a animação padrão Roblox e galerias de previews.

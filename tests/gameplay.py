@@ -145,6 +145,13 @@ test("store metadata uses Roblox price and owned passes do not reprompt",functio
  d.Passes.DoubleCoins=false modules.Commerce.prompt(p,{Type="Pass",Key="DoubleCoins"}) assert(prompted==1)
  C.Passes.DoubleCoins=0
 end)
+test("graphics preferences persist without changing economy",function()
+ local coins,gems,tool=d.Coins,d.Gems,d.Tool
+ G.action(p,"Graphics","Low") assert(d.Settings.Graphics=="Low")
+ G.action(p,"Graphics","Ultra") assert(d.Settings.Graphics=="Low")
+ G.action(p,"Graphics","Auto") assert(d.Settings.Graphics=="Auto")
+ assert(d.Coins==coins and d.Gems==gems and d.Tool==tool)
+end)
 test("legacy profile gains new fields without losing progress",function()
  local legacy={Version=1,Coins=250,Gems=45,Rebirths=5,Tool=3,World=2,Unlocked={["1"]=true,["2"]=true},Pets={{Uid="old-pet",Id="w1r2"}},Codes={WELCOME=true}}
  services.DataStoreService.GetDataStore=function() return {UpdateAsync=function(_,key,transform) return transform({Data=legacy}) end} end

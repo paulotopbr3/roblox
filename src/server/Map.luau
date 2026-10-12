@@ -1,6 +1,7 @@
 local C = require(game.ReplicatedStorage.UniverseMiner.Config)
 local Models = require(game.ReplicatedStorage.UniverseMiner.Models)
 local B = require(game.ReplicatedStorage.UniverseMiner.Balance)
+local Presentation = require(game.ReplicatedStorage.UniverseMiner.Presentation)
 local Map = { Crystals = {}, Spawns = {}, Eggs = {}, AFK = {}, Sell = {}, RankBoards = {} }
 local rng = Random.new()
 local function part(name, size, pos, color, parent, class)
@@ -12,7 +13,11 @@ local function part(name, size, pos, color, parent, class)
 	p.Anchored = true
 	p.CanQuery = false
 	p.TopSurface = Enum.SurfaceType.Smooth
-	p.Material = Enum.Material.SmoothPlastic
+	p.Material = name == "Trunk" and Enum.Material.Wood
+		or name == "Crown" and Enum.Material.Grass
+		or name:find("Path") and Enum.Material.Concrete
+		or Enum.Material.SmoothPlastic
+	p.BottomSurface = Enum.SurfaceType.Smooth
 	p.Parent = parent
 	return p
 end
@@ -63,20 +68,48 @@ local function orb(name, size, pos, color, parent)
 	return p
 end
 local function booth(parent, base, color, title, menu)
-	local floor = part(title .. "Base", Vector3.new(18, 1, 14), base, color, parent)
-	part("Counter", Vector3.new(15, 3, 3), base + Vector3.new(0, 2, -3), color:Lerp(Color3.new(1, 1, 1), 0.4), parent)
-	for _, x in ipairs({ -7, 7 }) do
-		part("Pillar", Vector3.new(0.8, 10, 0.8), base + Vector3.new(x, 5, -4), Color3.fromRGB(40, 46, 67), parent)
+	local floor = part(title .. "Base", Vector3.new(20, 1, 16), base, Color3.fromRGB(228, 225, 216), parent)
+	floor.Material = Enum.Material.Concrete
+	local counter =
+		part("Counter", Vector3.new(17, 3, 3), base + Vector3.new(0, 2, -3), Color3.fromRGB(97, 74, 66), parent)
+	counter.Material = Enum.Material.WoodPlanks
+	part("CounterTop", Vector3.new(18, 0.35, 4), base + Vector3.new(0, 3.7, -3), Color3.fromRGB(236, 231, 222), parent).Material =
+		Enum.Material.Marble
+	for _, x in ipairs({ -8, 8 }) do
+		part("Pillar", Vector3.new(0.7, 10, 0.7), base + Vector3.new(x, 5, -4), Color3.fromRGB(47, 62, 80), parent).Material =
+			Enum.Material.Metal
 	end
-	local roof = part("Canopy", Vector3.new(19, 1.5, 9), base + Vector3.new(0, 10, -3), color, parent)
+	local roof = part("Canopy", Vector3.new(22, 1, 11), base + Vector3.new(0, 10, -3), color, parent)
+	part(
+		"CanopyTrim",
+		Vector3.new(22.5, 0.4, 11.5),
+		base + Vector3.new(0, 9.5, -3),
+		Color3.fromRGB(244, 223, 178),
+		parent
+	).Material =
+		Enum.Material.Metal
+	for n = 1, 5 do
+		part(
+			"AwningStripe",
+			Vector3.new(2, 0.15, 11),
+			base + Vector3.new((n - 3) * 4, 10.6, -3),
+			color:Lerp(Color3.new(1, 1, 1), 0.65),
+			parent
+		)
+	end
+	local lamp = Instance.new("PointLight")
+	lamp.Color = Color3.fromRGB(255, 225, 180)
+	lamp.Range = 18
+	lamp.Brightness = 0.65
+	lamp.Parent = roof
 	label(roof, title, Vector3.new(0, 2, 0))
 	prompt(floor, "Abrir " .. title, "Menu", menu)
 end
 local function crystal(folder, pos, col, id, world, boss)
-	local height = boss and 17 or 7
+	local height = boss and 14 or 7
 	local core = part(
 		boss and "Titan" or "Crystal",
-		Vector3.new(boss and 10 or 3, height, boss and 10 or 3),
+		Vector3.new(boss and 9 or 3, height, boss and 7 or 3),
 		pos,
 		col,
 		folder,
@@ -84,37 +117,112 @@ local function crystal(folder, pos, col, id, world, boss)
 	)
 	core.CanCollide = false
 	core.CanQuery = true
-	core.Material = Enum.Material.Neon
+	core.Material = boss and Enum.Material.Metal or Enum.Material.Glass
+	core.Reflectance = boss and 0.04 or 0.08
 	core:SetAttribute("CrystalId", id)
-	core.CFrame = CFrame.new(pos) * CFrame.Angles(0, math.rad(id % 180), math.rad(boss and 0 or -12))
+	core.CFrame = CFrame.new(pos) * CFrame.Angles(0, math.rad(id % 180), boss and 0 or math.rad(-8))
 	local pieces = {}
-	if boss then
-		core.Shape = Enum.PartType.Ball
-	end
-	for side = -1, 1, 2 do
-		local p = part(
-			"Shard",
-			Vector3.new(boss and 5 or 1.8, height * 0.7, boss and 5 or 1.8),
-			pos + Vector3.new(side * (boss and 6 or 2.2), -height * 0.15, 0),
-			col,
-			folder,
-			"WedgePart"
-		)
-		p.Material = Enum.Material.Neon
+	local function add(name, size, offset, color, class, glow, query)
+		local p = part(name, size, pos + offset, color, folder, class)
 		p.CanCollide = false
-		p.CFrame = CFrame.new(p.Position) * CFrame.Angles(0, side * 0.5, side * 0.3)
+		p.CanQuery = query or false
+		p.Material = glow and Enum.Material.Neon or boss and Enum.Material.Metal or Enum.Material.Glass
+		p.Reflectance = glow and 0 or 0.04
+		if query then
+			p:SetAttribute("CrystalId", id)
+		end
 		table.insert(pieces, p)
+		return p
 	end
-	cylinder(
+	if boss then
+		add(
+			"TitanHead",
+			Vector3.new(7, 6, 6),
+			Vector3.new(0, 9, 0),
+			col:Lerp(Color3.new(0.1, 0.15, 0.2), 0.6),
+			nil,
+			false,
+			true
+		)
+		for _, side in ipairs({ -1, 1 }) do
+			add(
+				"TitanArm",
+				Vector3.new(4, 10, 4),
+				Vector3.new(side * 7, 0, 0),
+				col:Lerp(Color3.new(0, 0, 0), 0.35),
+				nil,
+				false,
+				true
+			)
+			add("TitanShoulder", Vector3.new(5, 4, 5), Vector3.new(side * 6, 5, 0), col, "WedgePart")
+			add(
+				"TitanEye",
+				Vector3.new(1.4, 0.7, 0.2),
+				Vector3.new(side * 1.5, 9.5, -3.1),
+				Color3.fromRGB(255, 225, 129),
+				nil,
+				true
+			)
+			add(
+				"TitanBoot",
+				Vector3.new(4, 4, 5),
+				Vector3.new(side * 2.6, -6, 0),
+				Color3.fromRGB(56, 70, 86),
+				nil,
+				false,
+				true
+			)
+		end
+		add("TitanCrest", Vector3.new(2, 5, 2), Vector3.new(0, 13, 0), col, "WedgePart", true)
+		add(
+			"TitanHeart",
+			Vector3.new(3, 4, 0.4),
+			Vector3.new(0, 2, -3.65),
+			Color3.fromRGB(186, 248, 255),
+			"WedgePart",
+			true
+		)
+	else
+		for side = -1, 1, 2 do
+			local p = add(
+				"CrystalFacet",
+				Vector3.new(1.8, height * 0.72, 1.8),
+				Vector3.new(side * 2, -height * 0.1, 0),
+				col,
+				"WedgePart",
+				false,
+				true
+			)
+			p.CFrame = CFrame.new(p.Position) * CFrame.Angles(0, side * 0.55, side * 0.24)
+		end
+		add("CrystalEnergy", Vector3.new(0.5, height * 0.7, 0.5), Vector3.new(0, 0, 0), col, nil, true)
+		add("CrystalCap", Vector3.new(1.6, 1.4, 1.6), Vector3.new(0, 3.6, 0), col, "WedgePart")
+	end
+	local pedestal = cylinder(
 		"Deposit",
-		Vector3.new(1, boss and 19 or 9, boss and 19 or 9),
-		pos - Vector3.new(0, height / 2, 0),
-		Color3.fromRGB(36, 42, 66),
+		Vector3.new(boss and 0.8 or 0.5, boss and 25 or 8, boss and 25 or 8),
+		pos - Vector3.new(0, boss and 8.4 or 3.7, 0),
+		Color3.fromRGB(75, 88, 105),
 		folder
 	)
+	pedestal.Material = Enum.Material.Slate
+	local t = label(core, "", Vector3.new(0, boss and 17 or 6, 0))
+	t.Parent.MaxDistance = boss and 85 or 36
+	local bar = Instance.new("Frame")
+	bar.Size = UDim2.new(1, -40, 0, 5)
+	bar.Position = UDim2.fromOffset(20, 40)
+	bar.BackgroundColor3 = Color3.fromRGB(40, 49, 65)
+	bar.BorderSizePixel = 0
+	bar.Parent = t.Parent
+	local fill = Instance.new("Frame")
+	fill.Size = UDim2.fromScale(1, 1)
+	fill.BackgroundColor3 = col
+	fill.BorderSizePixel = 0
+	fill.Parent = bar
 	local c = {
 		Part = core,
-		Label = label(core, "", Vector3.new(0, height * 0.65, 0)),
+		Label = t,
+		Bar = fill,
 		World = world,
 		RespawnAt = 0,
 		Pieces = pieces,
@@ -126,8 +234,8 @@ local function crystal(folder, pos, col, id, world, boss)
 	if boss then
 		local light = Instance.new("PointLight")
 		light.Color = col
-		light.Range = 24
-		light.Brightness = 1
+		light.Range = 20
+		light.Brightness = 0.6
 		light.Parent = core
 		prompt(core, "Ver desafio cooperativo", "Menu", "Guide")
 	end
@@ -359,37 +467,53 @@ function Map.build()
 	for i, w in ipairs(C.Worlds) do
 		local folder = Instance.new("Folder")
 		folder.Name = w.Name
+		folder:SetAttribute("WorldIndex", i)
 		folder.Parent = root
 		local base = Vector3.new((i - 1) * 300, 0, 0)
 		local col = Color3.fromRGB(table.unpack(w.Color))
 		local ground = (i >= 7 and i <= 11) and Color3.fromRGB(28, 32, 55) or col:Lerp(Color3.new(1, 1, 1), 0.45)
-		part("FloatingIsland", Vector3.new(190, 8, 190), base + Vector3.new(0, -4, 0), ground, folder)
-		local bottom = part(
-			"IslandCore",
-			Vector3.new(150, 20, 150),
-			base + Vector3.new(0, -18, 0),
-			ground:Lerp(Color3.new(0, 0, 0), 0.2),
-			folder,
-			"WedgePart"
+		local profile = Presentation.world(i)
+		local rim = cylinder(
+			"IslandRim",
+			Vector3.new(8, 264, 264),
+			base + Vector3.new(0, -7, 0),
+			ground:Lerp(Color3.new(0, 0, 0), 0.35),
+			folder
 		)
-		bottom.Material = Enum.Material.Slate
-		for _, edge in ipairs({ { 0, 93, 186, 2 }, { 0, -93, 186, 2 }, { 93, 0, 2, 186 }, { -93, 0, 2, 186 } }) do
-			local rail = part(
-				"LightRail",
-				Vector3.new(edge[3], 0.8, edge[4]),
-				base + Vector3.new(edge[1], 1, edge[2]),
-				col,
-				folder
+		rim.Material = Enum.Material.Rock
+		local floor =
+			cylinder("FloatingIsland", Vector3.new(5, 256, 256), base + Vector3.new(0, -2.5, 0), ground, folder)
+		floor.Material = Enum.Material[profile.GroundMaterial]
+		for k = 1, 16 do
+			local angle = k * math.pi / 8
+			local p = part(
+				"CliffFacet",
+				Vector3.new(24, 20 + (k % 3) * 5, 28),
+				base + Vector3.new(math.cos(angle) * 114, -16, math.sin(angle) * 114),
+				ground:Lerp(Color3.new(0, 0, 0), 0.48),
+				folder,
+				"WedgePart"
 			)
-			rail.Material = Enum.Material.Neon
+			p.Material = Enum.Material.Rock
+			p.CFrame = CFrame.new(p.Position) * CFrame.Angles(0, -angle, 0)
 			local wall = part(
 				"SafetyBarrier",
-				Vector3.new(edge[3], 30, edge[4]),
-				base + Vector3.new(edge[1], 14, edge[2]),
+				Vector3.new(52, 28, 1),
+				base + Vector3.new(math.cos(angle) * 123, 13, math.sin(angle) * 123),
 				col,
 				folder
 			)
 			wall.Transparency = 1
+			wall.CFrame = CFrame.new(wall.Position) * CFrame.Angles(0, -angle + math.pi / 2, 0)
+			local rail = part(
+				"CliffRail",
+				Vector3.new(36, 1, 1),
+				base + Vector3.new(math.cos(angle) * 120, 0.7, math.sin(angle) * 120),
+				Color3.fromRGB(102, 116, 130),
+				folder
+			)
+			rail.Material = Enum.Material.Metal
+			rail.CFrame = CFrame.new(rail.Position) * CFrame.Angles(0, -angle + math.pi / 2, 0)
 		end
 		part(
 			"MainPath",
@@ -458,7 +582,35 @@ function Map.build()
 			label(portal, "PRÓXIMO: " .. C.Worlds[i + 1].Name, Vector3.new(0, 15, 0))
 			prompt(portal, "Ver mundos e desbloquear", "Menu", "Worlds")
 		end
-		decorate(folder, base, i, col)
+		local details = Instance.new("Folder")
+		details.Name = "GraphicsDetails"
+		details.Parent = folder
+		decorate(details, base, i, col)
+		for k = 1, 6 do
+			local angle = k * math.pi / 3
+			local point = base + Vector3.new(math.cos(angle) * 111, -3, math.sin(angle) * 111)
+			local peak = part(
+				"BackdropPeak",
+				Vector3.new(28, 20 + (k % 3) * 9, 25),
+				point,
+				col:Lerp(Color3.new(0.15, 0.2, 0.25), 0.5),
+				details,
+				"WedgePart"
+			)
+			peak.CanCollide = false
+			peak.Material = i == 3 and Enum.Material.Sand or i == 12 and Enum.Material.Snow or Enum.Material.Rock
+			peak.CFrame = CFrame.new(point) * CFrame.Angles(0, -angle, 0)
+			local cap = part(
+				"PeakCap",
+				Vector3.new(18, 5, 17),
+				point + Vector3.new(0, 10 + (k % 3) * 4, 0),
+				col:Lerp(Color3.new(1, 1, 1), 0.4),
+				details,
+				"WedgePart"
+			)
+			cap.CanCollide = false
+			cap.Material = i == 12 and Enum.Material.Snow or Enum.Material.Slate
+		end
 		enrich(folder, base, i, col)
 	end
 	local spawn = Instance.new("SpawnLocation")
@@ -486,7 +638,14 @@ function Map.build()
 		rankingBoard(root, key, -49.5 + (n - 1) * 33, Color3.fromRGB(255, 213, 114))
 	end
 	local light = game:GetService("Lighting")
-	light.ClockTime = 15
+	light.ClockTime = 16.3
+	light.EnvironmentDiffuseScale = 0.75
+	light.EnvironmentSpecularScale = 0.9
+	light.ExposureCompensation = 0.05
+	pcall(function()
+		light.LightingStyle = Enum.LightingStyle.Realistic
+		light.PrioritizeLightingQuality = true
+	end)
 	light.Brightness = 2
 	light.Ambient = Color3.fromRGB(119, 116, 162)
 	light.OutdoorAmbient = Color3.fromRGB(159, 167, 196)
@@ -498,9 +657,9 @@ function Map.build()
 	atmosphere.Parent = light
 	local bloom = light:FindFirstChild("UniverseBloom") or Instance.new("BloomEffect")
 	bloom.Name = "UniverseBloom"
-	bloom.Intensity = 0.25
+	bloom.Intensity = 0.1
 	bloom.Size = 18
-	bloom.Threshold = 1.5
+	bloom.Threshold = 1.8
 	bloom.Parent = light
 end
 function Map.reset(c)
@@ -511,27 +670,46 @@ function Map.reset(c)
 	c.Health = c.MaxHealth
 	c.RespawnAt = 0
 	c.Contributors = {}
-	c.Part.Transparency = 0
+	c.Part.Transparency = c.Boss and 0 or 0.08
 	c.Part:SetAttribute("Health", c.Health)
 	c.Part:SetAttribute("MaxHealth", c.MaxHealth)
 	c.Part:SetAttribute("Boss", c.Boss)
 	local col = rare and Color3.fromRGB(255, 223, 91) or Color3.fromRGB(table.unpack(w.Color))
 	c.Part.Color = col
 	for _, p in ipairs(c.Pieces) do
-		p.Transparency = 0
-		p.Color = col
+		p.Transparency = c.Boss and 0 or p.Material == Enum.Material.Glass and 0.1 or 0
+		if not c.Boss then
+			p.Color = col
+		end
+		if p:GetAttribute("CrystalId") then
+			p:SetAttribute("Health", c.Health)
+			p:SetAttribute("MaxHealth", c.MaxHealth)
+			p:SetAttribute("Alive", true)
+			p:SetAttribute("Boss", c.Boss)
+		end
 	end
 	c.Label.Text = (c.Boss and "TITÃ " or rare and "★ RARO " or "") .. math.ceil(c.Health) .. " HP"
 	c.Part:SetAttribute("Alive", true)
+	c.Bar.Size = UDim2.fromScale(1, 1)
+	c.Bar.BackgroundColor3 = col
 end
 function Map.hit(c, damage)
 	c.Health = math.max(0, c.Health - damage)
 	c.Part:SetAttribute("Health", c.Health)
+	for _, p in ipairs(c.Pieces) do
+		if p:GetAttribute("CrystalId") then
+			p:SetAttribute("Health", c.Health)
+		end
+	end
+	c.Bar.Size = UDim2.fromScale(c.Health / c.MaxHealth, 1)
 	c.Label.Text = (c.Boss and "TITÃ " or "") .. math.ceil(c.Health) .. " HP"
 	if c.Health == 0 then
 		c.Part.Transparency = 1
 		for _, p in ipairs(c.Pieces) do
 			p.Transparency = 1
+			if p:GetAttribute("CrystalId") then
+				p:SetAttribute("Alive", false)
+			end
 		end
 		c.Label.Text = c.Boss and "Retorna em 3 minutos" or ""
 		c.Part:SetAttribute("Alive", false)

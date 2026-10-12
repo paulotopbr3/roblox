@@ -39,7 +39,7 @@ local function fresh()
 		Pets = {},
 		Equipped = {},
 		Passes = {},
-		Settings = { Music = true, Effects = true, ReducedMotion = false },
+		Settings = { Music = true, Effects = true, ReducedMotion = false, Graphics = "Auto" },
 		Boosts = { Coins = 0, Luck = 0 },
 		Bag = 0,
 		BagCount = 0,
@@ -106,6 +106,8 @@ local function normalize(raw)
 		p.Tier = math.clamp(math.floor(tonumber(p.Tier) or 0), 0, 2)
 		d.Discoveries[p.Id] = true
 	end
+	d.Settings.Graphics = (d.Settings.Graphics == "Low" or d.Settings.Graphics == "High") and d.Settings.Graphics
+		or "Auto"
 	d.Passes = {} -- Ownership is verified with Marketplace on each login.
 	return d
 end

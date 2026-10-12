@@ -24,6 +24,13 @@ function UI.frame(parent, size, position, color)
 	f.BorderSizePixel = 0
 	f.Parent = parent
 	UI.round(f)
+	local gradient = Instance.new("UIGradient")
+	gradient.Rotation = 90
+	gradient.Color = ColorSequence.new(
+		color or UI.Colors.Background,
+		(color or UI.Colors.Background):Lerp(Color3.fromRGB(222, 234, 251), 0.12)
+	)
+	gradient.Parent = f
 	local stroke = Instance.new("UIStroke")
 	stroke.Color = Color3.fromRGB(106, 123, 169)
 	stroke.Transparency = 0.68
@@ -61,6 +68,10 @@ function UI.button(parent, value, callback, color)
 	b.Selectable = true
 	b.Parent = parent
 	UI.round(b, 10)
+	local gradient = Instance.new("UIGradient")
+	gradient.Rotation = 90
+	gradient.Color = ColorSequence.new(chosen, chosen:Lerp(Color3.new(0, 0, 0), 0.08))
+	gradient.Parent = b
 	b.Activated:Connect(callback)
 	return b
 end

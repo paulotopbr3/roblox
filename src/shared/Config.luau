@@ -1,6 +1,6 @@
 local C = {}
 C.Title = "Universe Miner Simulator"
-C.Release = "Crystal Isles"
+C.Release = "Prismatic Worlds"
 C.PetImages = {} -- IDs de imagens opcionais; retratos 3D funcionam sem upload
 C.WorldImages = {} -- miniaturas opcionais de mundos
 C.ToolImages = {} -- imagens opcionais de picaretas

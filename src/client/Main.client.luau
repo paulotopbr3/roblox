@@ -16,6 +16,7 @@ local B = require(shared.Balance)
 local P = require(shared.Progression)
 local UI = require(script.Parent.UI)
 local V = require(script.Parent.Visuals)
+local Graphics = require(script.Parent.Graphics)
 local colors = UI.Colors
 local gui = Instance.new("ScreenGui")
 gui.Name = "UniverseMinerUI"
@@ -908,6 +909,16 @@ render = function()
 			send("Code", codeValue)
 		end, colors.Green)
 	elseif menu == "Settings" then
+		UI.button(
+			list,
+			"Gráficos: " .. (state.Settings.Graphics or "Auto") .. " • " .. Graphics.Effective,
+			function()
+				local modes = { "Auto", "High", "Low" }
+				local index = table.find(modes, state.Settings.Graphics or "Auto") or 1
+				send("Graphics", modes[index % #modes + 1])
+			end,
+			colors.Accent
+		)
 		for _, key in ipairs({ "Music", "Effects", "ReducedMotion" }) do
 			UI.button(list, key .. ": " .. (state.Settings[key] and "ON" or "OFF"), function()
 				send("Setting", key)
@@ -1215,6 +1226,7 @@ update.OnClientEvent:Connect(function(kind, payload)
 		end
 		state = payload
 		V.update(state)
+		Graphics.apply(state)
 		wallet.Text = "♦ "
 			.. B.compact(state.Coins)
 			.. " Coins    ◆ "

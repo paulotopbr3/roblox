@@ -28,7 +28,7 @@ No ambiente Linux, `bash tools/bootstrap.sh` prepara Rojo 7.5.1 e Luau 0.695 for
 - Atualize `Products.WeeklyPet.Pet` para trocar a oferta semanal; a configuração atual oferece Weekly Supernova. Não remova IDs de produtos com recibos pendentes.
 - Execute o [roteiro de testes no Studio](docs/TESTING.md) antes de liberar o jogo.
 
-Sem DataStore disponível, **somente no Studio** é permitida uma sessão temporária, indicada na tela. Em produção, falha de carregamento impede a entrada para proteger dados. O ambiente Linux validou compilação, 61 verificações da economia, inicialização e gameplay com APIs simuladas, compilação e build do place com geometria exportada e importada pelo Rojo; motor Roblox, controles, persistência e pagamentos ainda exigem validação no Studio.
+Sem DataStore disponível, **somente no Studio** é permitida uma sessão temporária, indicada na tela. Em produção, falha de carregamento impede a entrada para proteger dados. O ambiente Linux validou compilação, 66 verificações da economia, inicialização e gameplay com APIs simuladas, compilação e build do place com geometria exportada e importada pelo Rojo; motor Roblox, controles, persistência e pagamentos ainda exigem validação no Studio.
 
 ## Estrutura
 
@@ -51,7 +51,7 @@ No repositório, use **Code → Download ZIP**, extraia e abra `UniverseMiner.rb
 
 Baixe o ZIP atualizado, extraia em uma pasta nova e abra `UniverseMiner.rbxlx`; clique em **Play (F5)**. O novo arquivo contém um preview do mapa em edição; HP, interação e menus iniciam em Play. A inicialização tolera DataStore indisponível em arquivos ainda não publicados no Studio, usando dados temporários. Se aparecer um aviso de falha, abra **View → Output** e copie a primeira mensagem vermelha para diagnóstico.
 
-## Novidades Crystal Isles
+## Novidades Prismatic Worlds
 
 [Todas as novidades](docs/CHANGELOG.md): 56 picaretas equipáveis com modelos próprios, retratos dos 104 pets, galerias visuais, cenários temáticos, quatro painéis de Top Global, titãs, combos, pet inicial, tutorial, presentes, fusão e Gems Lab. O guia de [monetização](docs/MONETIZATION.md) explica como cadastrar IDs e preços reais.
 
@@ -63,4 +63,12 @@ Para gerar também o preview do mapa em edição, use `python3 tools/check.py`. 
 - Picaretas são ferramentas Roblox equipadas na mão, com geometria por tier, animação de golpe e previews na loja. O hotbar padrão é ocultado para evitar sobreposição com a navegação.
 - Pets têm sete famílias visuais, paletas por mundo e variantes Golden/Cosmic. As imagens são retratos 3D em ViewportFrame, incluindo ovos, inventário e coleção. Não precisam de upload. Para imagens 2D próprias, configure URLs `rbxassetid://...` em `C.PetImages`; `C.ToolImages` e `C.WorldImages` também aceitam substituições opcionais.
 - Top Global de Coins, Rebirths, Pets e Gems: quatro tabelas na praça inicial e tabela com avatar no menu Mais → Top Global. Requer DataStore disponível; sem conexão, mostra esse estado. Coins/Rebirths/Pets históricos não retrocedem com uma gravação atrasada. Gems representam saldo atual.
-- 19 arquivos Luau compilados; 17 menus construídos em testes com APIs simuladas, geometria de todas as picaretas/pets e importação do mapa verificadas. Layout, iluminação, física, animação e desempenho precisam de teste no Studio.
+- 22 arquivos Luau compilados; 17 menus construídos em testes com APIs simuladas, geometria de todas as picaretas/pets e importação do mapa verificadas. Layout, iluminação, física, animação e desempenho precisam de teste no Studio.
+
+## Remodelação Prismatic Worlds
+
+As 14 ilhas foram remodeladas com plataformas arredondadas, falésias, picos e materiais nativos por bioma. Cristais agora têm faces de vidro, núcleo de energia e barras de vida; os titãs têm cabeça, olhos, braços, ombreiras, botas e coração luminoso. Pets ganharam corpos arredondados, bochechas e patas; picaretas usam madeira, tecido e metal com detalhes de energia. A interface recebeu gradientes discretos e manteve os seis atalhos principais.
+
+A iluminação usa Realistic, luz indireta, reflexos, color grading e bloom leve, com horário e paleta próprios para cada mundo. Em **Mais → Ajustes → Gráficos**, escolha Auto, High ou Low. Auto usa Low em dispositivos com toque; Low limita partículas, sombras e a camada de decoração. Essa escolha é salva e não altera recompensas, hitboxes ou progresso.
+
+Os testes verificam 22 arquivos Luau, montagem dos 17 menus, alternância de gráficos, materiais, barras de vida e disponibilidade das faces clicáveis. A aparência final, colisões e FPS precisam ser conferidos no motor Roblox. Não houve mudança no nome do DataStore nem reset de perfis.

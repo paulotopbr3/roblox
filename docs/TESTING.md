@@ -2,7 +2,7 @@
 
 ## Verificado no Linux
 
-`python3 tools/check.py` compila 19 arquivos Luau (17 de runtime + 2 testes), executa 12 testes e monta o `.rbxlx`. Os testes exercitam os módulos efetivamente utilizados pelo servidor: catálogo, limites de progressão, fronteiras e distribuição de raridade, créditos/capacidade dos ovos, recibos repetidos, quantidade fixa de Gems, extensão dos boosts, slots e IDs. Além disso, cinco verificações executam os módulos reais de Data/Rankings e o bootstrap com serviços simulados que recusam acesso ao DataStore: ausência de aquisição no carregamento, fallback temporário no Studio, recusa segura em produção, rankings não fatais e chegada à geração do mapa. Isso não executa as APIs do motor Roblox.
+`python3 tools/check.py` compila 22 arquivos Luau (19 de runtime + 3 testes), executa 12 testes e monta o `.rbxlx`. Os testes exercitam os módulos efetivamente utilizados pelo servidor: catálogo, limites de progressão, fronteiras e distribuição de raridade, créditos/capacidade dos ovos, recibos repetidos, quantidade fixa de Gems, extensão dos boosts, slots e IDs. Além disso, cinco verificações executam os módulos reais de Data/Rankings e o bootstrap com serviços simulados que recusam acesso ao DataStore: ausência de aquisição no carregamento, fallback temporário no Studio, recusa segura em produção, rankings não fatais e chegada à geração do mapa. Isso não executa as APIs do motor Roblox.
 
 ## Roblox Studio — execução obrigatória
 
@@ -51,3 +51,13 @@ No Studio:
 4. Abrir Mais → Top Global e navegar quatro categorias. Com DataStore habilitado, comparar tabela de menu com painéis na praça, verificar score atualizado e avatar. Sem API, nenhum jogador fictício deve aparecer. Após falha, verificar indicação de resultado antigo. Coins/Pets são históricos e Gems são saldo.
 5. Passear nos 14 mundos: landmarks não bloqueiam trajetos de mineração; portais, vitrines, lagoas e jardim apresentam cores corretas. Map preview em edição não duplica o mapa ao iniciar. Confirmar que só depósitos vivos entram no raycast.
 6. MicroProfiler e estatísticas de render com seis/nove pets, 24 retratos e várias contas. Conferir quedas de FPS, latência e memória após abrir/fechar galerias muitas vezes. Ajustar density de cenário e viewports conforme dispositivos reais.
+
+## Validação Prismatic Worlds no Studio
+
+- Percorrer a borda das 14 plataformas circulares: chão, cercas e barreiras devem impedir queda acidental sem cortar atalhos. Conferir área AFK, tabelas, portais e arena; nenhum objeto importante deve ficar fora do chão.
+- Clicar nas facetas dos cristais e no corpo/rosto do titã. Todas as superfícies devem compartilhar HP e Alive. HP zero esconde toda a geometria, não deixa alvo fantasma e paga apenas uma vez; respawn restaura saúde, barra e todas as faces. Olhos/armadura mantêm suas cores.
+- Nos 14 mundos, verificar material, exposição, cor da atmosfera e legibilidade em ambientes noturnos. Superfícies Neon e bloom não devem apagar detalhes. Viewports devem continuar legíveis e neutros.
+- Alternar Auto/Low/High e salvar/reentrar. Low deve esconder somente GraphicsDetails e limitar partículas; não altera colisão, portais, ferramentas, placares ou mineração. Testar telefone com toque, computador com touch e gamepad; Auto usa o detector TouchEnabled, que também pode ser verdadeiro em notebooks.
+- Usar MicroProfiler/Stats em diferentes presets, nove pets e galeria completa. Avaliar luzes, sombras, transparência, fill rate e memória; reduzir densidade conforme o dispositivo real. Os testes fora do Studio não medem FPS nem garantem renderização idêntica.
+
+Automatizados novos: 14 perfis visuais/materiais, presets e overrides de qualidade, preferência salva sem alterar economia, LOD cosmético, HP em faces/barras, reset de cores de titã e importação da cena remodelada.

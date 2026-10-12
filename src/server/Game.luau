@@ -461,6 +461,10 @@ function Game.action(player, action, arg)
 			Game.notice(player, "Código inválido ou já resgatado.")
 		end
 	elseif Content.action(player, action, arg) then
+	elseif action == "Graphics" then
+		if arg == "Auto" or arg == "Low" or arg == "High" then
+			d.Settings.Graphics = arg
+		end
 	elseif action == "Setting" then
 		if arg == "Music" or arg == "Effects" or arg == "ReducedMotion" then
 			d.Settings[arg] = not d.Settings[arg]
