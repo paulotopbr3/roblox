@@ -4,11 +4,11 @@
 
 ```text
 ReplicatedStorage/UniverseMiner
-  Config, Balance, Economy, Progression (ModuleScripts)
+  Config, Balance, Economy, Progression, Art, Models (ModuleScripts)
   Remotes/Action, Update (RemoteEvents, criados em runtime)
 ServerScriptService/UniverseMiner
   Main (Script)
-  Data, Game, Map, Commerce, Rankings, Content (ModuleScripts)
+  Data, Game, Map, Commerce, Rankings, Content, Gear (ModuleScripts)
 StarterPlayer/StarterPlayerScripts/UniverseMiner/Main (LocalScript), UI, Visuals (ModuleScripts)
 Workspace/UniverseMap (gerado em runtime)
 PlayerGui/UniverseMinerUI (gerado no cliente)
@@ -55,3 +55,13 @@ Titãs têm 100x HP, não ocupam mochila e guardam contribuição de dano no ser
 Mochila pode chegar a 180 espaços por upgrades gratuitos. Até +3 slots gratuitos de Gems se acumulam com os +3 do passe, totalizando nove pets. O cliente pagina inventário em 24 itens; HUD, menus e prompts usam palavras e benefícios claros. `Sync` sempre envia inventário completo, mesmo quando o primeiro snapshot chegou antes do listener do cliente.
 
 `tools/bake_map.py` executa o gerador real com construtores de geometria simulados e exporta a cena para o place. Confere 14 mundos, 294 cristais/titãs e importa o XML pelo leitor nativo do Rojo para validar o formato. Esse preview não executa física nem prova renderização no Roblox. O servidor destrói apenas `Workspace.UniverseMap` e reconstrói o mapa em Play para registrar prompts, atributos e HP.
+
+## Geometria, ferramentas e apresentação
+
+`Art` produz especificações puras (tamanhos, poses, cores) para ferramentas, pets e landmarks. `Models` instancia essas especificações; os mesmos dados alimentam equipamento, expositores e retratos. Gear cria um Tool Roblox com Handle direto e peças unidas por WeldConstraint, com CanBeDropped=false. Atualizações não duplicam a ferramenta. O servidor mantém índice/dano/cooldown autoritativos; a animação usa toolanim=Slash do Animate padrão Roblox. A UI oculta o Backpack padrão e oferece navegação própria.
+
+Viewports são estáticos nas galerias. Os seguidores mantêm um corpo ancorado e peças unidas; closing/desequip remove o Model inteiro. Avatares do ranking usam rbxthumb com o ID real retornado pelo OrderedDataStore. Config de imagem 2D é opcional e aceita somente assets publicados/autorizados pelo criador.
+
+Top Global: SurfaceGui na praça e menu compartilham Cache/Available do servidor. Score histórico usa UpdateAsync(max(old,novo)); Gems usa SetAsync do saldo atual. API indisponível deixa entradas anteriores em cache e marca como indisponível. Sem entradas, exibe traços e texto de status. Nenhum ranking local se apresenta como global.
+
+A referência solicitada foi interpretada como clareza visual de praça, vitrines e galerias; o link específico de “Roube um Ovo” não foi fornecido nesta atualização. Os modelos/cores desta versão são originais e mantêm o loop de mineração.

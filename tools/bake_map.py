@@ -33,7 +33,7 @@ cfMeta.__mul=function(a,b)
  local v=b.Position local transformed=vector(a.R[1]*v.X+a.R[2]*v.Y+a.R[3]*v.Z,a.R[4]*v.X+a.R[5]*v.Y+a.R[6]*v.Z,a.R[7]*v.X+a.R[8]*v.Y+a.R[9]*v.Z)
  return cframe(a.Position+transformed,r)
 end
-local CF={new=function(pos) return cframe(pos or vector()) end}
+local CF={new=function(x,y,z) return cframe(type(x)=="table" and x or vector(x,y,z)) end}
 function CF.Angles(x,y,z)
  local sx,cx,sy,cy,sz,cz=math.sin(x),math.cos(x),math.sin(y),math.cos(y),math.sin(z),math.cos(z)
  return cframe(vector(),{cy*cz,-cy*sz,sy,cx*sz+sx*sy*cz,cx*cz-sx*sy*sz,-sx*cy,sx*sz-cx*sy*cz,sx*cz+cx*sy*sz,cx*cy})
@@ -42,6 +42,10 @@ local methods={}
 function methods:FindFirstChild(name) for _,child in ipairs(self.Children) do if child.Name==name then return child end end return nil end
 function methods:SetAttribute(key,value) self.Attributes[key]=value end
 function methods:GetAttribute(key) return self.Attributes[key] end
+function methods:GetChildren() return table.clone(self.Children) end
+function methods:FindFirstChildOfClass(class) for _,child in ipairs(self.Children) do if child.Class==class then return child end end end
+function methods:IsA(class) return self.Class==class or class=="BasePart" and (self.Class=="Part" or self.Class=="WedgePart" or self.Class=="SpawnLocation") end
+function methods:EquipTool(tool) tool.Parent=self.Parent end
 function methods:Destroy() if self.Parent then for i,c in ipairs(self.Parent.Children) do if c==self then table.remove(self.Parent.Children,i) break end end end end
 local function instance(class)
  local item={Class=class,Properties={},Children={},Attributes={}}
@@ -57,7 +61,7 @@ local function instance(class)
    else
     self.Properties[key]=value
     if key=="CFrame" then self.Properties.Position=value.Position end
-    if key=="Position" then self.Properties.CFrame=cframe(value,(self.Properties.CFrame or cf(vector())).R) end
+    if key=="Position" and value.Type=="Vector3" then self.Properties.CFrame=cframe(value,(self.Properties.CFrame or cf(vector())).R) end
    end
   end,
  })
@@ -66,7 +70,7 @@ local world=instance("Workspace") local lighting=instance("Lighting")
 local enum=setmetatable({},{__index=function(_,name) return setmetatable({},{__index=function(_,value) return {Type="Enum",Name=name.."."..value} end}) end})
 local env={workspace=world,Instance={new=instance},Vector3={new=vector},Color3={new=color,fromRGB=function(r,g,b) return color(r/255,g/255,b/255) end,fromHSV=function(h,s,v)
  local i=math.floor(h*6) local f=h*6-i local p,q,t=v*(1-s),v*(1-f*s),v*(1-(1-f)*s) local colors={{v,t,p},{q,v,p},{p,v,t},{p,q,v},{t,p,v},{v,p,q}} return color(table.unpack(colors[i%6+1])) end},
- CFrame=CF,UDim2={fromOffset=function(x,y) return {Type="UDim2",XS=0,XO=x,YS=0,YO=y} end,fromScale=function(x,y) return {Type="UDim2",XS=x,XO=0,YS=y,YO=0} end},Enum=enum,
+ CFrame=CF,Vector2={new=function(x,y) return {Type="Vector2",X=x,Y=y} end},UDim2={new=function(xs,xo,ys,yo) return {Type="UDim2",XS=xs,XO=xo,YS=ys,YO=yo} end,fromOffset=function(x,y) return {Type="UDim2",XS=0,XO=x,YS=0,YO=y} end,fromScale=function(x,y) return {Type="UDim2",XS=x,XO=0,YS=y,YO=0} end},Enum=enum,
  Random={new=function() return {NextNumber=function() return 0.5 end} end},game={ReplicatedStorage={UniverseMiner={Config="Config"}},GetService=function(_,key) assert(key=="Lighting") return lighting end},
 }
 setmetatable(env,{__index=getfenv()})
@@ -78,16 +82,42 @@ ENUMS={
     'SurfaceType.Smooth':0,'PartType.Ball':0,'PartType.Cylinder':2,
     'Material.SmoothPlastic':272,'Material.Neon':288,'Material.Sand':1296,
     'Material.Slate':800,'Material.Ice':1536,'Material.Metal':1088,
+    'NormalId.Front':5,'TextXAlignment.Left':0,'Material.Glass':1568,
     'Font.GothamBold':19,'KeyCode.E':101,'KeyCode.ButtonX':1000,
 }
 
 def bake(place, luau, rojo):
-    code=HARNESS+'\nlocal config=load('+literal(ROOT/'src/shared/Config.luau')+')\nenv.require=function() return config end\n'
+    code=HARNESS+'\nlocal config=load('+literal(ROOT/'src/shared/Config.luau')+')\n'
+    code+='local art=load('+literal(ROOT/'src/shared/Art.luau')+')\n'
+    code+='local modules={Config=config,Art=art,Balance=load('+literal(ROOT/'src/shared/Balance.luau')+')}\n'
+    code+='env.script={Parent={Art="Art"}} env.game.ReplicatedStorage.UniverseMiner.Models="Models" env.game.ReplicatedStorage.UniverseMiner.Balance="Balance"\n'
+    code+='env.require=function(key) return assert(modules[key],key) end\nmodules.Models=load('+literal(ROOT/'src/shared/Models.luau')+')\n'
+    code+='local gear=load('+literal(ROOT/'src/server/Gear.luau')+')\n'
+    code+=r"""
+local user=instance("Player") local char=instance("Model") user.Character=char
+local bag=instance("Backpack") bag.Parent=user
+local hum=instance("Humanoid") hum.Health=100 hum.Parent=char
+gear.update(user,1)
+local equipped=assert(char:FindFirstChildOfClass("Tool"))
+assert(equipped:FindFirstChild("Handle") and equipped:GetAttribute("ToolIndex")==1)
+local parts=0 for _,p in ipairs(equipped:GetChildren()) do if p:IsA("BasePart") then parts+=1 assert(not p.Anchored and not p.CanCollide) end end
+assert(parts==#art.tool(1).Parts,"Every geometry part must survive transfer from model to Tool")
+gear.update(user,1) assert(char:FindFirstChildOfClass("Tool")==equipped,"No duplicate tools per tick")
+equipped.Parent=bag gear.update(user,1) assert(equipped.Parent==char,"Re-equip the owned pickaxe")
+gear.update(user,56)
+equipped=assert(char:FindFirstChildOfClass("Tool"))
+assert(equipped:GetAttribute("ToolIndex")==56 and equipped:FindFirstChild("Crown"),"Upgrade replaces equipped geometry")
+"""
     code+='local map=load('+literal(ROOT/'src/server/Map.luau')+')\nmap.build()\n'
     code+=r'''
 local count,bosses=0,0 for _,c in pairs(map.Crystals) do count+=1 if c.Boss then bosses+=1 end end
 assert(count==#config.Worlds*21 and bosses==#config.Worlds,"Every world must have 20 deposits and a boss")
 assert(#map.Spawns==#config.Worlds and #map.AFK==2)
+for _,key in ipairs({"Coins","Rebirths","Pets","Gems"}) do assert(map.RankBoards[key] and #map.RankBoards[key].Rows==10) end
+map.updateRankings({Coins={{Name="ActualPlayer",Value=1000}}},1,{Coins=true})
+assert(map.RankBoards.Coins.Rows[1].Text:find("ActualPlayer") and map.RankBoards.Gems.Status.Text:find("indisponível"))
+-- Remove the fixture ranking before exporting the public preview.
+map.updateRankings({},0,{})
 local function escape(s) return '"'..s:gsub('\\','\\\\'):gsub('"','\\"'):gsub('\n','\\n'):gsub('\r','\\r'):gsub('\t','\\t')..'"' end
 local function json(v)
  if type(v)=="string" then return escape(v) end
@@ -98,7 +128,7 @@ local function json(v)
  for k,x in pairs(v) do table.insert(out,escape(k)..':'..json(x)) end return '{'..table.concat(out,',')..'}'
 end
 local function export(item)
- local props={} for k,v in pairs(item.Properties) do if k~="Parent" and k~="Position" then props[k]=v end end
+ local props={} for k,v in pairs(item.Properties) do if k~="Parent" and not (k=="Position" and type(v)=="table" and v.Type=="Vector3") and not (type(v)=="table" and v.Class) then props[k]=v end end
  local children={} for _,c in ipairs(item.Children) do table.insert(children,export(c)) end
  return {Class=item.Class,Properties=props,Children=children}
 end
@@ -120,6 +150,9 @@ print(json(export(assert(world:FindFirstChild("UniverseMap")))))
             elif isinstance(v,str): ET.SubElement(props,'string',name=name).text=v
             elif isinstance(v,(float,int)): ET.SubElement(props,'float',name=name).text=str(v)
             elif v['Type']=='Enum': ET.SubElement(props,'token',name=name).text=str(ENUMS[v['Name']])
+            elif v['Type']=='Vector2':
+                p=ET.SubElement(props,'Vector2',name=name)
+                for key in ('X','Y'): ET.SubElement(p,key).text=str(v[key])
             elif v['Type']=='Vector3':
                 p=ET.SubElement(props,'Vector3',name=name)
                 for key in ('X','Y','Z'): ET.SubElement(p,key).text=str(v[key])

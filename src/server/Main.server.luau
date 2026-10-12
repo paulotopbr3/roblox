@@ -5,6 +5,7 @@ local Map = require(script.Parent.Map)
 local Game = require(script.Parent.Game)
 local Commerce = require(script.Parent.Commerce)
 local Rankings = require(script.Parent.Rankings)
+local Gear = require(script.Parent.Gear)
 local shared = game.ReplicatedStorage.UniverseMiner
 local remotes = Instance.new("Folder")
 remotes.Name = "Remotes"
@@ -18,6 +19,8 @@ updates.Parent = remotes
 Game.Store = function()
 	return Commerce.Catalog
 end
+Game.Swing = Gear.swing
+Game.Equip = Gear.update
 Game.init(updates)
 Map.Interact = function(player, key, arg)
 	if not Data.writable(player) or not Game.rate(player) then
@@ -49,34 +52,7 @@ local function character(player, char)
 		return
 	end
 	Map.teleport(player, s.Data.World)
-	local hand = char:FindFirstChild("RightHand") or char:FindFirstChild("Right Arm")
-	if hand and not char:FindFirstChild("PickaxeHandle") then
-		local handle = Instance.new("Part")
-		handle.Name = "PickaxeHandle"
-		handle.Size = Vector3.new(0.3, 3, 0.3)
-		handle.Color = Color3.fromRGB(115, 78, 48)
-		handle.CanCollide = false
-		handle.Massless = true
-		handle.Parent = char
-		local weld = Instance.new("Weld")
-		weld.Part0 = hand
-		weld.Part1 = handle
-		weld.C0 = CFrame.new(0, -0.6, -0.5) * CFrame.Angles(math.rad(40), 0, 0)
-		weld.Parent = handle
-		local head = Instance.new("Part")
-		head.Name = "PickaxeHead"
-		head.Size = Vector3.new(2.5, 0.45, 0.55)
-		head.Color = Color3.fromRGB(137, 202, 230)
-		head.Material = Enum.Material.Metal
-		head.CanCollide = false
-		head.Massless = true
-		head.Parent = char
-		local joint = Instance.new("Weld")
-		joint.Part0 = handle
-		joint.Part1 = head
-		joint.C0 = CFrame.new(0, 1.3, 0)
-		joint.Parent = head
-	end
+	Gear.update(player, s.Data.Tool)
 end
 local function join(player)
 	player.CharacterAdded:Connect(function(char)
@@ -125,7 +101,11 @@ action.OnServerEvent:Connect(function(player, key, arg)
 	if key == "Purchase" then
 		Commerce.prompt(player, arg)
 	elseif key == "Rankings" then
-		Game.emit(player, "Rankings", { Rows = Rankings.Cache, Updated = Rankings.Updated })
+		Game.emit(
+			player,
+			"Rankings",
+			{ Rows = Rankings.Cache, Updated = Rankings.Updated, Available = Rankings.Available }
+		)
 	else
 		Game.action(player, key, arg)
 	end
@@ -141,11 +121,7 @@ task.spawn(function()
 		task.wait(2)
 		for player, s in pairs(Data.Sessions) do
 			if not s.Closing then
-				local head = player.Character and player.Character:FindFirstChild("PickaxeHead")
-				if head then
-					head.Color = Color3.fromHSV((s.Data.Tool / #C.Tools) * 0.8, 0.7, 1)
-					head.Material = s.Data.Tool > 12 and Enum.Material.Neon or Enum.Material.Metal
-				end
+				Gear.update(player, s.Data.Tool)
 				Game.snapshot(player)
 				local stats = player:FindFirstChild("leaderstats")
 				if stats then
@@ -174,6 +150,7 @@ end)
 task.spawn(function()
 	while not closing do
 		Rankings.refresh()
+		Map.updateRankings(Rankings.Cache, Rankings.Updated, Rankings.Available)
 		task.wait(180)
 	end
 end)

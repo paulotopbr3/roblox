@@ -30,7 +30,7 @@ local services = {
 local modules = {}
 local environment = {
  game = {JobId="",ReplicatedStorage={UniverseMiner={Config="Config"}},GetService=function(_,name) return assert(services[name],name) end,BindToClose=function() end},
- script = {Parent={Data="Data",Map="Map",Game="Game",Commerce="Commerce",Rankings="Rankings"}},
+ script = {Parent={Data="Data",Map="Map",Game="Game",Commerce="Commerce",Rankings="Rankings",Gear="Gear"}},
  Instance = {new=function() return {OnServerEvent=event} end},
  task = {spawn=function() end,wait=function() end},
  warn = function() warnings+=1 end,
@@ -67,6 +67,7 @@ print("PASS unavailable rankings remain nonfatal")
 modules.Map={build=function() built=true end}
 modules.Game={init=function() end,subscribe=function() end}
 modules.Commerce={init=function() end}
+modules.Gear={update=function() end,swing=function() end}
 '''
 harness += '\nload(' + source('src/server/Main.server.luau') + ')\n'
 harness += 'assert(built,"Server must reach map generation")\nprint("PASS server bootstrap reaches map generation with unavailable DataStores")\n'

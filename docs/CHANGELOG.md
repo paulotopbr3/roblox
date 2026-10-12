@@ -1,3 +1,13 @@
+# Crystal Isles
+
+- 56 modelos de picaretas: ferramentas reais na mão, troca imediata ao comprar/renascer, golpe usando a animação padrão Roblox e galerias de previews.
+- 104 retratos de pets com sete silhuetas (Sprite/Fox/Golem/Dragon/Phoenix/Titan/Oracle), paletas de bioma e variantes. ViewportFrame renderiza as imagens, com opção de asset 2D próprio.
+- Miniaturas dos 14 mundos usam os mesmos modelos dos landmarks do mapa: cabana, árvore gigante, pirâmide, navio, casa de doces, vulcão, foguete, núcleo astral, santuário Void, templo, skyline Cyber, gelo, relógio e castelo.
+- Loja de picaretas com expositores 3D e pedestais de pets junto aos ovos. Jardins, dunas, lagoas, lava e pavimentos enriquecem os biomas.
+- Interface clara, seis atalhos principais, abas, galerias em grid, retrato do pet selecionado e detalhes de ajuda recolhíveis. Sem recriar galerias a cada snapshot quando os dados relevantes não mudam.
+- Quatro painéis TOP GLOBAL na praça inicial e tabela no menu com posições, avatares e totais. Nome de usuário consultado uma vez por servidor. Falha de API conserva o último resultado e sinaliza indisponibilidade.
+- Validação de 17 menus reais com serviços simulados; todas as geometrias e importação XML verificadas. DataStore, controles, viewport/iluminação e física ainda exigem teste real no Studio.
+
 # Cosmic Horizons
 
 - 14 mundos (novos: Cyber, Frost, Clockwork e Dream), 56 picaretas, 104 espécies de pets e variantes Normal/Golden/Cosmic.

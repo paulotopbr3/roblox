@@ -1,6 +1,9 @@
 local C = {}
 C.Title = "Universe Miner Simulator"
-C.Release = "Cosmic Horizons"
+C.Release = "Crystal Isles"
+C.PetImages = {} -- IDs de imagens opcionais; retratos 3D funcionam sem upload
+C.WorldImages = {} -- miniaturas opcionais de mundos
+C.ToolImages = {} -- imagens opcionais de picaretas
 C.BossRespawn = 180
 C.ComboWindow = 8
 C.ComboMax = 20
@@ -96,6 +99,7 @@ for world = 1, #C.Worlds do
 			Name = names[world] .. " " .. species[rarity],
 			Rarity = label,
 			Rank = rarity,
+			Color = colors[world],
 			World = world,
 			Coins = 0.10 * world * rarity,
 			Damage = 0.12 * world * rarity,
@@ -263,4 +267,7 @@ C.Quests = {
 }
 C.Codes = { WELCOME = { Gems = 100 }, UNIVERSE = { Gems = 250 } }
 C.Codes.COSMIC = { Gems = 300 }
+for _, info in pairs(C.Pets) do
+	info.Color = info.Color or colors[info.World]
+end
 return C

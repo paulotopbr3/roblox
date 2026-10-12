@@ -24,13 +24,16 @@ for file in files:
         raise SystemExit(result.stderr.decode(errors='replace'))
 print(f'PASS: {len(files)} Luau files compile', flush=True)
 subprocess.run([tool('luau', 'luau'), str(root / 'tests/economy.spec.luau')], check=True)
+subprocess.run([tool('luau', 'luau'), str(root / 'tests/art.spec.luau')], check=True)
 subprocess.run([sys.executable, str(root / 'tests/studio_startup.py'), tool('luau', 'luau')], check=True)
 subprocess.run([sys.executable, str(root / 'tests/gameplay.py'), tool('luau', 'luau')], check=True)
+subprocess.run([sys.executable, str(root / 'tests/interface.py'), tool('luau', 'luau')], check=True)
+subprocess.run([sys.executable, str(root / 'tests/rankings.py'), tool('luau', 'luau')], check=True)
 output = root / 'UniverseMiner.rbxlx'
 subprocess.run([tool('rojo', 'rojo'), 'build', str(root / 'default.project.json'), '-o', str(output)], check=True)
 bake(output, tool('luau', 'luau'), tool('rojo', 'rojo'))
 place = ET.parse(output)
 classes = [x.attrib.get('class') for x in place.iter('Item')]
 assert classes.count('Script') == 1 and classes.count('LocalScript') == 1
-assert classes.count('ModuleScript') == 12
-print('PASS: place includes the server, client and 12 modules')
+assert classes.count('ModuleScript') == 15
+print('PASS: place includes the server, client and 15 modules')

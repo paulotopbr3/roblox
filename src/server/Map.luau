@@ -1,5 +1,7 @@
 local C = require(game.ReplicatedStorage.UniverseMiner.Config)
-local Map = { Crystals = {}, Spawns = {}, Eggs = {}, AFK = {}, Sell = {} }
+local Models = require(game.ReplicatedStorage.UniverseMiner.Models)
+local B = require(game.ReplicatedStorage.UniverseMiner.Balance)
+local Map = { Crystals = {}, Spawns = {}, Eggs = {}, AFK = {}, Sell = {}, RankBoards = {} }
 local rng = Random.new()
 local function part(name, size, pos, color, parent, class)
 	local p = Instance.new(class or "Part")
@@ -218,7 +220,135 @@ local function decorate(folder, base, i, col)
 		end
 	end
 end
+local function rankingBoard(root, key, x, color)
+	local board =
+		part("Global" .. key, Vector3.new(28, 24, 1), Vector3.new(x, 14, 90), Color3.fromRGB(31, 42, 67), root)
+	for _, side in ipairs({ -1, 1 }) do
+		part("BoardSupport", Vector3.new(1, 14, 1), board.Position + Vector3.new(side * 12, -12, 0), color, root)
+	end
+	local gui = Instance.new("SurfaceGui")
+	gui.Name = "GlobalTable"
+	gui.Face = Enum.NormalId.Front
+	gui.CanvasSize = Vector2.new(700, 600)
+	gui.Parent = board
+	local function entry(value, y, size, col)
+		local t = Instance.new("TextLabel")
+		t.Size = UDim2.new(1, -32, 0, size or 38)
+		t.Position = UDim2.fromOffset(16, y)
+		t.BackgroundTransparency = 1
+		t.Font = Enum.Font.GothamBold
+		t.TextSize = size == 50 and 28 or 20
+		t.TextColor3 = col or Color3.fromRGB(240, 247, 255)
+		t.TextXAlignment = Enum.TextXAlignment.Left
+		t.Text = value
+		t.Parent = gui
+		return t
+	end
+	entry("TOP GLOBAL • " .. string.upper(key), 12, 50, color)
+	entry("#     JOGADOR                            TOTAL", 70, 32, Color3.fromRGB(173, 196, 224))
+	local rows = {}
+	for rank = 1, 10 do
+		rows[rank] = entry(rank .. ".  —", 105 + (rank - 1) * 42, 38, rank <= 3 and color or nil)
+	end
+	local status = entry("Aguardando DataStore • publique para ativar", 554, 32, Color3.fromRGB(173, 196, 224))
+	Map.RankBoards[key] = { Rows = rows, Status = status }
+	prompt(board, "Abrir classificação global", "Menu", "Rankings")
+end
+function Map.updateRankings(cache, updated, available)
+	for key, board in pairs(Map.RankBoards) do
+		local rows = cache[key] or {}
+		for rank, t in ipairs(board.Rows) do
+			local entry = rows[rank]
+			t.Text = entry and rank .. ".  " .. entry.Name .. "    " .. B.compact(entry.Value) or rank .. ".  —"
+		end
+		board.Status.Text = available[key] and "GLOBAL • atualização a cada 3 min"
+			or (
+				#rows > 0 and "GLOBAL • exibindo último resultado salvo"
+				or "Global indisponível • aguarde DataStore"
+			)
+	end
+end
+local function enrich(folder, base, i, col)
+	local landmark = Models.world(C.Worlds[i], i, folder, CFrame.new(base + Vector3.new(-65, 0.5, -65)), 4)
+	landmark.Name = "SignatureLandmark"
+	-- Shop exhibits use the exact same geometry as equipped pickaxes.
+	for n = 1, 3 do
+		local index = math.clamp((i - 1) * 4 + n, 1, #C.Tools)
+		local pos = base + Vector3.new(-60 + (n - 1) * 5, 4, 60)
+		cylinder("ToolDisplayStand", Vector3.new(2.4, 3, 3), pos - Vector3.new(0, 2.8, 0), col, folder)
+		Models.tool(index, folder, CFrame.new(pos) * CFrame.Angles(0, math.rad(-20), math.rad(-10)), true)
+	end
+	for n, rank in ipairs({ 2, 4, 5 }) do
+		local pos = base + Vector3.new(-68, 3.2, 35 + n * 7)
+		cylinder("PetDisplayStand", Vector3.new(1.6, 4, 4), pos - Vector3.new(0, 2.4, 0), col, folder)
+		local id = "w" .. i .. "r" .. rank
+		Models.pet(C.Pets[id], 0, folder, CFrame.new(pos), true)
+	end
+	-- Garden islands, puddles and small paths keep the mine area readable.
+	for n = 1, 6 do
+		local x = n % 2 == 0 and 57 or -57
+		local z = -25 + (math.floor((n - 1) / 2)) * 19
+		if i == 4 then
+			local water = orb(
+				"Lagoon",
+				Vector3.new(12, 0.3, 9),
+				base + Vector3.new(x, 0.3, z),
+				Color3.fromRGB(83, 187, 234),
+				folder
+			)
+			water.Material = Enum.Material.Glass
+			water.Transparency = 0.3
+			water.CanCollide = false
+		elseif i == 3 then
+			local dune = orb(
+				"SandBank",
+				Vector3.new(10, 4, 8),
+				base + Vector3.new(x, -0.8, z),
+				Color3.fromRGB(246, 225, 167),
+				folder
+			)
+			dune.Material = Enum.Material.Sand
+		elseif i == 6 then
+			local lava = orb(
+				"LavaPool",
+				Vector3.new(9, 0.3, 7),
+				base + Vector3.new(x, 0.3, z),
+				Color3.fromRGB(255, 146, 63),
+				folder
+			)
+			lava.Material = Enum.Material.Neon
+			lava.CanCollide = false
+		else
+			local patch = cylinder(
+				"GardenPatch",
+				Vector3.new(0.2, 9, 9),
+				base + Vector3.new(x, 0.3, z),
+				col:Lerp(Color3.new(1, 1, 1), 0.2),
+				folder
+			)
+			for petal = 1, 3 do
+				orb(
+					"Flower",
+					Vector3.new(0.8, 0.8, 0.8),
+					patch.Position + Vector3.new(petal - 2, 0.6, 0),
+					Color3.fromRGB(255, 222, 143),
+					folder
+				)
+			end
+		end
+	end
+	for k = 1, 8 do
+		local p = part("PathPaver", Vector3.new(10, 0.1, 1), base + Vector3.new(0, 0.3, -70 + k * 17), col, folder)
+		p.CanCollide = false
+	end
+end
 function Map.build()
+	Map.Crystals = {}
+	Map.Spawns = {}
+	Map.Eggs = {}
+	Map.AFK = {}
+	Map.Sell = {}
+	Map.RankBoards = {}
 	local old = workspace:FindFirstChild("UniverseMap")
 	if old then
 		old:Destroy()
@@ -329,6 +459,7 @@ function Map.build()
 			prompt(portal, "Ver mundos e desbloquear", "Menu", "Worlds")
 		end
 		decorate(folder, base, i, col)
+		enrich(folder, base, i, col)
 	end
 	local spawn = Instance.new("SpawnLocation")
 	spawn.Name = "UniverseSpawn"
@@ -350,6 +481,9 @@ function Map.build()
 		label(p, vip and "LOUNGE VIP AFK • 3x" or "AFK • presentes a cada 30s")
 		table.insert(Map.AFK, { Part = p, VIP = vip })
 		prompt(p, vip and "Benefícios VIP" or "Presentes gratuitos", "Menu", vip and "Shop" or "Rewards")
+	end
+	for n, key in ipairs({ "Coins", "Rebirths", "Pets", "Gems" }) do
+		rankingBoard(root, key, -49.5 + (n - 1) * 33, Color3.fromRGB(255, 213, 114))
 	end
 	local light = game:GetService("Lighting")
 	light.ClockTime = 15

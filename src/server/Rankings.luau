@@ -1,8 +1,9 @@
 local DSS = game:GetService("DataStoreService")
 local Players = game:GetService("Players")
 local C = require(game.ReplicatedStorage.UniverseMiner.Config)
-local Rankings = { Cache = {}, Updated = 0, Busy = false }
+local Rankings = { Cache = {}, Updated = 0, Busy = false, Available = {} }
 local stores = {}
+local names = {}
 local keys = { "Coins", "Rebirths", "Pets", "Gems" }
 local function getStore(key)
 	if not stores[key] then
@@ -21,7 +22,13 @@ function Rankings.write(player, d)
 	local values = { Coins = d.TotalCoins, Rebirths = d.Rebirths, Pets = d.TotalPets, Gems = d.Gems }
 	for key, value in pairs(values) do
 		local ok, err = pcall(function()
-			getStore(key):SetAsync(tostring(player.UserId), encode(value))
+			if key == "Gems" then
+				getStore(key):SetAsync(tostring(player.UserId), encode(value))
+			else
+				getStore(key):UpdateAsync(tostring(player.UserId), function(old)
+					return math.max(old or 0, encode(value))
+				end)
+			end
 		end)
 		if not ok then
 			warn("Ranking " .. key .. ":", err)
@@ -38,22 +45,25 @@ function Rankings.refresh()
 			return getStore(key):GetSortedAsync(false, 20):GetCurrentPage()
 		end)
 		if ok then
+			Rankings.Available[key] = true
 			local rows = {}
 			for _, entry in ipairs(result) do
 				local userId = tonumber(entry.key)
-				local name = "User " .. entry.key
-				if userId then
+				local name = names[entry.key] or "User " .. entry.key
+				if userId and not names[entry.key] then
 					local found, username = pcall(function()
 						return Players:GetNameFromUserIdAsync(userId)
 					end)
 					if found then
 						name = username
+						names[entry.key] = username
 					end
 				end
 				table.insert(rows, { Name = name, Value = decode(entry.value), UserId = userId })
 			end
 			Rankings.Cache[key] = rows
 		else
+			Rankings.Available[key] = false
 			warn("Leitura de ranking indisponível:", key)
 		end
 	end

@@ -190,6 +190,9 @@ function Game.mine(player, id)
 		end
 	end
 	rt.LastHit = now
+	if Game.Swing then
+		Game.Swing(player)
+	end
 	local damage = tool.Damage * Game.mult(d, "Damage")
 	if c.Boss then
 		c.Contributors = c.Contributors or {}
@@ -319,6 +322,9 @@ function Game.rebirth(player)
 	d.Rebirths += 1
 	Game.gems(d, 50 + math.min(d.Rebirths, 10000) * 10, true)
 	Map.teleport(player, 1)
+	if Game.Equip then
+		Game.Equip(player, 1)
+	end
 	Game.emit(
 		player,
 		"Celebration",
@@ -349,6 +355,9 @@ function Game.action(player, action, arg)
 		if nextTool and d.Coins >= nextTool.Cost then
 			d.Coins -= nextTool.Cost
 			d.Tool += 1
+			if Game.Equip then
+				Game.Equip(player, d.Tool)
+			end
 			Game.emit(player, "Celebration", { Kind = "Level", Text = nextTool.Name })
 		else
 			Game.notice(player, "Coins insuficientes ou ferramenta máxima.")

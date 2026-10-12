@@ -4,6 +4,7 @@ local Debris = game:GetService("Debris")
 local Run = game:GetService("RunService")
 local Sound = game:GetService("SoundService")
 local C = require(game.ReplicatedStorage.UniverseMiner.Config)
+local Models = require(game.ReplicatedStorage.UniverseMiner.Models)
 local player = Players.LocalPlayer
 local V = { State = nil, Pets = {}, Signature = "" }
 local gold = Color3.fromRGB(255, 212, 108)
@@ -57,64 +58,80 @@ function V.celebrate(count)
 		V.burst(root.Position, count, gold)
 	end
 end
-local function piece(parent, name, size, offset, color, shape)
-	local p = Instance.new("Part")
-	p.Name = name
-	p.Size = size
-	p.Color = color
-	p.Shape = shape or Enum.PartType.Block
-	p.CanCollide = false
-	p.CanQuery = false
-	p.Massless = true
-	p.CFrame = parent.CFrame * CFrame.new(offset)
-	p.Parent = parent
-	local weld = Instance.new("Weld")
-	weld.Part0 = parent
-	weld.Part1 = p
-	weld.C0 = CFrame.new(offset)
-	weld.Parent = p
-	return p
-end
 function V.petModel(info, tier, parent)
-	local p = Instance.new("Part")
-	p.Name = info.Name
-	p.Size = Vector3.new(1.8, 1.7, 1.7)
-	p.Anchored = true
-	p.CanCollide = false
-	p.CanQuery = false
-	p.Color = tier == 1 and gold
-		or tier == 2 and Color3.fromRGB(167, 137, 255)
-		or Color3.fromHSV(info.World / 16, 0.5, 1)
-	p.Material = tier > 0 and Enum.Material.Neon or Enum.Material.SmoothPlastic
-	p.Parent = parent
-	piece(
-		p,
-		"Eye",
-		Vector3.new(0.25, 0.35, 0.15),
-		Vector3.new(-0.4, 0.2, -0.88),
-		Color3.fromRGB(20, 25, 48),
-		Enum.PartType.Ball
-	)
-	piece(
-		p,
-		"Eye",
-		Vector3.new(0.25, 0.35, 0.15),
-		Vector3.new(0.4, 0.2, -0.88),
-		Color3.fromRGB(20, 25, 48),
-		Enum.PartType.Ball
-	)
-	for _, side in ipairs({ -1, 1 }) do
-		piece(p, "Ear", Vector3.new(0.5, 0.7, 0.5), Vector3.new(side * 0.55, 1, 0), p.Color)
+	local model = Models.pet(info, tier or 0, parent, CFrame.new(), false)
+	model.PrimaryPart.Anchored = true
+	return model
+end
+function V.portrait(parent, id, tier, locked, kind, index)
+	local imageId = kind == "Tool" and C.ToolImages[index] or C.PetImages[id]
+	if imageId and imageId ~= "" and not locked then
+		local image = Instance.new("ImageLabel")
+		image.BackgroundTransparency = 1
+		image.Size = UDim2.fromScale(1, 1)
+		image.Image = imageId
+		image.ScaleType = Enum.ScaleType.Fit
+		image.Parent = parent
+		return image
 	end
-	if info.Rank >= 4 then
-		for _, side in ipairs({ -1, 1 }) do
-			piece(p, "Wing", Vector3.new(1.3, 0.25, 1.1), Vector3.new(side * 1.4, 0.2, 0), gold)
+	local viewport = Instance.new("ViewportFrame")
+	viewport.Name = "Portrait"
+	viewport.Size = UDim2.fromScale(1, 1)
+	viewport.BackgroundTransparency = 1
+	viewport.Ambient = Color3.fromRGB(220, 230, 255)
+	viewport.LightColor = Color3.fromRGB(255, 244, 220)
+	viewport.LightDirection = Vector3.new(-1, -1, -1)
+	viewport.Parent = parent
+	local world = Instance.new("WorldModel")
+	world.Parent = viewport
+	local model = kind == "Tool"
+			and Models.tool(index, world, CFrame.new() * CFrame.Angles(0, math.rad(-25), math.rad(-18)), true)
+		or Models.pet(C.Pets[id], tier or 0, world, CFrame.new() * CFrame.Angles(0, math.rad(-18), 0), true)
+	if locked then
+		for _, p in ipairs(model:GetChildren()) do
+			if p:IsA("BasePart") then
+				p.Color = Color3.fromRGB(117, 128, 151)
+				p.Material = Enum.Material.SmoothPlastic
+			end
 		end
 	end
-	if info.Rank >= 5 then
-		piece(p, "Crown", Vector3.new(1, 0.3, 0.7), Vector3.new(0, 1.25, 0), gold)
+	local camera = Instance.new("Camera")
+	camera.FieldOfView = 35
+	camera.CFrame = CFrame.new(
+		Vector3.new(0, kind == "Tool" and 0.9 or 0.5, kind == "Tool" and -8 or -6),
+		Vector3.new(0, kind == "Tool" and 0.7 or 0.2, 0)
+	)
+	camera.Parent = viewport
+	viewport.CurrentCamera = camera
+	return viewport
+end
+function V.worldPortrait(parent, index)
+	local imageId = C.WorldImages[index]
+	if imageId and imageId ~= "" then
+		local image = Instance.new("ImageLabel")
+		image.Size = UDim2.fromScale(1, 1)
+		image.BackgroundTransparency = 1
+		image.Image = imageId
+		image.ScaleType = Enum.ScaleType.Fit
+		image.Parent = parent
+		return image
 	end
-	return p
+	local viewport = Instance.new("ViewportFrame")
+	viewport.Name = "WorldPreview"
+	viewport.Size = UDim2.fromScale(1, 1)
+	viewport.BackgroundTransparency = 1
+	viewport.Ambient = Color3.fromRGB(220, 231, 250)
+	viewport.LightColor = Color3.fromRGB(255, 245, 224)
+	viewport.Parent = parent
+	local world = Instance.new("WorldModel")
+	world.Parent = viewport
+	Models.world(C.Worlds[index], index, world, CFrame.new(), 1)
+	local camera = Instance.new("Camera")
+	camera.FieldOfView = 37
+	camera.CFrame = CFrame.new(Vector3.new(10, 7, -12), Vector3.new(0, 2.4, 0))
+	camera.Parent = viewport
+	viewport.CurrentCamera = camera
+	return viewport
 end
 function V.update(state)
 	V.State = state
@@ -159,7 +176,8 @@ Run.RenderStepped:Connect(function(dt)
 				1 + (reduced and 0 or math.sin(os.clock() * 3 + i) * 0.3),
 				math.sin(angle) * 4.5
 			)
-		p.CFrame = p.CFrame:Lerp(CFrame.new(pos, pos + root.CFrame.LookVector), math.min(1, dt * 12))
+		p.PrimaryPart.CFrame =
+			p.PrimaryPart.CFrame:Lerp(CFrame.new(pos, pos + root.CFrame.LookVector), math.min(1, dt * 12))
 	end
 end)
 return V
